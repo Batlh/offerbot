@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
-                               QLabel, QLineEdit, QPushButton, QScrollArea, QSpinBox, QVBoxLayout, QWidget)
+                               QLabel, QLineEdit, QPlainTextEdit, QPushButton, QScrollArea, QSpinBox, QVBoxLayout, QWidget)
 
 from .. import __version__
 from ..core import ai
@@ -99,6 +99,18 @@ class SettingsTab(QWidget):
         f3.addRow(note)
         lay.addWidget(g3)
 
+        g5 = QGroupBox("Knopf „Im Browser ansehen“ (Watchlist)")
+        f5 = QFormLayout(g5)
+        self.sites = QPlainTextEdit()
+        self.sites.setMaximumHeight(110)
+        f5.addRow(self.sites)
+        sh = QLabel("Eine Seite pro Zeile: Name = Adresse. Platzhalter: {query} = Suchtext, {ort}, {plz}, "
+                    "{kaufda} = kaufDA-Begriff. Die Seiten öffnen sich in deinem normalen Browser.")
+        sh.setWordWrap(True)
+        sh.setStyleSheet("color:#555")
+        f5.addRow(sh)
+        lay.addWidget(g5)
+
         g4 = QGroupBox("Export")
         f4 = QFormLayout(g4)
         row = QHBoxLayout()
@@ -171,6 +183,7 @@ class SettingsTab(QWidget):
         self.ai_pages.setCurrentIndex(1 if a.get("pages") == "alle" else 0)
         self.ai_max.setValue(int(a.get("max_pages_per_run", 40)))
         self.export_dir.setText(s.get("export_dir", ""))
+        self.sites.setPlainText("\n".join(f"{n} = {u}" for n, u in s.get("browse_sites", [])))
         self.export_on_run.setChecked(bool(s.get("export_on_run")))
 
     def save(self):
@@ -182,7 +195,9 @@ class SettingsTab(QWidget):
                  user_agent=self.ua.text().strip() or s["user_agent"], browser_mode=self.browser.isChecked() and bool(s.get("browser_channel")),
                  ocr=self.ocr.isChecked(), export_dir=self.export_dir.text().strip(),
                  export_on_run=self.export_on_run.isChecked(),
-                 region={"ort": self.ort.text().strip(), "plz": self.plz.text().strip()})
+                 region={"ort": self.ort.text().strip(), "plz": self.plz.text().strip()},
+                 browse_sites=[[a.strip(), b.strip()] for a, b in (ln.split("=", 1) for ln in
+                               self.sites.toPlainText().splitlines() if "=" in ln) if a.strip() and b.strip()])
         s["ai"].update(mode=self.ai_mode.currentText(), claude_model=self.claude_model.text().strip(),
                        openai_model=self.openai_model.text().strip(), use_for_prospekte=self.ai_auto.isChecked(),
                        pages="alle" if self.ai_pages.currentIndex() == 1 else "treffer",

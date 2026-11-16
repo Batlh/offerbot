@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel,
-                               QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPlainTextEdit, QPushButton,
+                               QLineEdit, QListWidget, QListWidgetItem, QMenu, QMessageBox, QPlainTextEdit, QPushButton,
                                QSplitter, QVBoxLayout, QWidget)
 
 from ..core.matcher import text_matches
@@ -88,7 +88,13 @@ class WatchTab(QWidget):
         self.b_save = QPushButton("Speichern")
         self.b_save.setDefault(True)
         self.b_rematch = QPushButton("Gespeicherte Angebote neu abgleichen")
+        self.b_browse = QPushButton("Im Browser ansehen ▾")
+        self.b_browse.setToolTip("Öffnet die Suche nach diesem Eintrag in deinem Browser (Seiten in den Einstellungen änderbar)")
+        self.browse_menu = QMenu(self)
+        self.browse_menu.aboutToShow.connect(self.fill_browse_menu)
+        self.b_browse.setMenu(self.browse_menu)
         bl2.addStretch()
+        bl2.addWidget(self.b_browse)
         bl2.addWidget(self.b_rematch)
         bl2.addWidget(self.b_save)
         rl.addLayout(bl2)
@@ -136,7 +142,8 @@ class WatchTab(QWidget):
         w = self.main.config.watch(item.data(Qt.UserRole)) if item else None
         self.current = w
         for wd in (self.name, self.keywords, self.query, self.category, self.max_price, self.min_discount,
-                   self.in_deals, self.in_prospekte, self.search_online, self.enabled, self.urls, self.notes, self.b_save):
+                   self.in_deals, self.in_prospekte, self.search_online, self.enabled, self.urls, self.notes, self.b_save,
+                   self.b_browse):
             wd.setEnabled(w is not None)
         if not w:
             return
@@ -202,6 +209,37 @@ class WatchTab(QWidget):
             self.current = None
             self.reload()
             self.changed.emit()
+
+    def browse_urls(self) -> list[tuple[str, str]]:
+        from urllib.parse import quote, quote_plus
+        from ..core.sources.kaufda import slug_candidates
+        w = self.current
+        if not w:
+            return []
+        q = (self.query.text().strip() or self.name.text().strip())
+        reg = self.main.config.settings.get("region") or {}
+        ort = "-".join(x[:1].upper() + x[1:] for x in reg.get("ort", "").split())
+        kd = (slug_candidates(q) or [""])[0]
+        out = []
+        for name, url in self.main.config.settings.get("browse_sites", []):
+            out.append((name, url.replace("{query}", quote_plus(q)).replace("{ort}", quote(ort))
+                        .replace("{plz}", quote(reg.get("plz", ""))).replace("{kaufda}", quote(kd))))
+        return out
+
+    def fill_browse_menu(self):
+        import webbrowser
+        self.browse_menu.clear()
+        urls = self.browse_urls()
+        if not urls:
+            self.browse_menu.addAction("(erst einen Eintrag wählen)").setEnabled(False)
+            return
+        for name, url in urls:
+            self.browse_menu.addAction(name, lambda u=url: webbrowser.open(u))
+        self.browse_menu.addSeparator()
+        self.browse_menu.addAction("Alle öffnen", lambda: [webbrowser.open(u) for _, u in urls])
+        for u in self.current.urls:
+            if u.startswith("http"):
+                self.browse_menu.addAction("Produkt-Link: " + u[:60], lambda u=u: webbrowser.open(u))
 
     def try_keywords(self):
         t = self.test_text.text().strip()

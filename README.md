@@ -25,6 +25,8 @@ Optional:
 
 1. **Watchlist**: Was du suchst. Name, Stichwörter, Höchstpreis, optional Mindest-Rabatt.
    Häkchen, ob gegen *Deals & Shops* und/oder *Prospekte* geprüft wird.
+   Der Knopf **„Im Browser ansehen ▾“** öffnet die Suche nach dem Eintrag bei idealo, Geizhals, mydealz, Amazon
+   oder kaufDA in deinem normalen Browser (Liste unter *Einstellungen* änderbar).
    Bei *Produkt-Links* kannst du konkrete Produktseiten eintragen – deren Preis wird bei jedem Lauf gelesen
    und als eigener Preisverlauf gespeichert (Rechtsklick auf einen Treffer → „Preisverlauf anzeigen“).
 2. **Quellen**: Wo gesucht wird. Alles an/aus-schaltbar, eigenes Intervall je Quelle, **„Testen“** zeigt sofort,

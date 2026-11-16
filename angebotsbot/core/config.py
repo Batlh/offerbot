@@ -26,7 +26,15 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "browser_channel": "",  # msedge oder chromium – wird bei der Einrichtung gesetzt
     "ocr": True,  # Texterkennung für Bild-Prospekte
     "close_to_tray": True,  # Fenster schließen = im Infobereich weiterlaufen
-    "region": {"ort": "Trier", "plz": "54290"},  # für kaufDA & Platzhalter {ort}/{plz} in Quellen-URLs
+    "region": {"ort": "Trier", "plz": "54290"},
+    # Knopf "Im Browser ansehen": öffnet diese Seiten in deinem Browser ({query} = Suchtext, {ort}/{plz} = Region)
+    "browse_sites": [
+        ["idealo", "https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q={query}"],
+        ["Geizhals", "https://geizhals.de/?fs={query}&hloc=de"],
+        ["mydealz", "https://www.mydealz.de/search?q={query}"],
+        ["Amazon", "https://www.amazon.de/s?k={query}"],
+        ["kaufDA", "https://www.kaufda.de/{ort}/Angebote/{kaufda}"],
+    ],  # für kaufDA & Platzhalter {ort}/{plz} in Quellen-URLs
     "ai": {
         "mode": "aus",  # aus | claude | openai
         "claude_model": "claude-haiku-5-5",
