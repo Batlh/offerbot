@@ -1,0 +1,98 @@
+"""HTTP-Abrufe mit höflicher Pause pro Seite und optionalem Browser-Modus (Playwright)."""
+from __future__ import annotations
+
+import threading
+import time
+from pathlib import Path
+from urllib.parse import urlparse
+
+import requests
+
+
+class FetchError(Exception):
+    pass
+
+
+BOT_HINTS = ("cf-chl", "captcha", "verifizierung erforderlich", "are you a robot", "robot check",
+             "geben sie die zeichen", "enable javascript and cookies")
+
+
+class Fetcher:
+    def __init__(self, settings: dict):
+        self.settings = settings
+        self.session = requests.Session()
+        self.session.headers.update({
+            "User-Agent": settings.get("user_agent") or "Mozilla/5.0",
+            "Accept-Language": "de-DE,de;q=0.9,en;q=0.6",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.8,*/*;q=0.7",
+        })
+        self._last: dict[str, float] = {}
+        self._lock = threading.Lock()
+
+    def _wait(self, url: str) -> None:
+        host = urlparse(url).netloc
+        delay = float(self.settings.get("request_delay_s", 1.5))
+        with self._lock:
+            last = self._last.get(host, 0.0)
+            wait = last + delay - time.time()
+            self._last[host] = max(time.time(), last + delay)
+        if wait > 0:
+            time.sleep(wait)
+
+    def get(self, url: str, as_json: bool = False, binary: bool = False):
+        self._wait(url)
+        try:
+            r = self.session.get(url, timeout=float(self.settings.get("timeout_s", 20)))
+        except requests.RequestException as e:
+            raise FetchError(f"Verbindung fehlgeschlagen: {e}") from e
+        if r.status_code in (403, 429, 503):
+            raise FetchError(f"HTTP {r.status_code} – die Seite blockt automatische Abrufe "
+                             f"(ggf. Browser-Modus aktivieren oder PDF manuell importieren)")
+        if r.status_code >= 400:
+            raise FetchError(f"HTTP {r.status_code} bei {url}")
+        if binary:
+            return r.content
+        if as_json:
+            try:
+                return r.json()
+            except ValueError as e:
+                raise FetchError("Antwort ist kein JSON") from e
+        if not r.encoding or r.encoding.lower() == "iso-8859-1":
+            r.encoding = r.apparent_encoding or "utf-8"
+        text = r.text
+        low = text[:5000].lower()
+        if any(h in low for h in BOT_HINTS) and len(text) < 60000:
+            raise FetchError("Die Seite verlangt eine Bot-Prüfung/Captcha – automatischer Abruf nicht möglich")
+        return text
+
+    def download(self, url: str, target: Path) -> Path:
+        data = self.get(url, binary=True)
+        if not data[:5].startswith(b"%PDF"):
+            raise FetchError("Download ist keine PDF-Datei")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+        return target
+
+    def render(self, url: str, wait_selector: str | None = None, wait_ms: int = 2500) -> str:
+        """Seite in echtem (unsichtbarem) Browser laden und Text-HTML zurückgeben."""
+        if not self.settings.get("browser_mode"):
+            raise FetchError("Browser-Modus ist in den Einstellungen ausgeschaltet")
+        try:
+            from playwright.sync_api import sync_playwright  # type: ignore
+        except ImportError as e:
+            raise FetchError("Browser-Modus braucht Playwright: 'install_browser_mode.bat' ausführen") from e
+        self._wait(url)
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(user_agent=self.settings.get("user_agent"), locale="de-DE")
+                page.goto(url, timeout=int(float(self.settings.get("timeout_s", 20)) * 1000))
+                if wait_selector:
+                    try:
+                        page.wait_for_selector(wait_selector, timeout=10000)
+                    except Exception:
+                        pass
+                page.wait_for_timeout(wait_ms)
+                return page.content()
+            finally:
+                browser.close()
