@@ -18,7 +18,6 @@ Windows-SmartScreen warnt beim ersten Start, weil die EXE nicht signiert ist: �
 
 Optional:
 - `autostart_einrichten.bat` – startet AngebotsBot mit Windows, unsichtbar im Infobereich (neben der Uhr).
-- `install_browser_mode.bat` – Browser-Modus für JavaScript-Seiten (nötig für die marktguru-Quelle).
 - `build_exe.bat` – baut eine eigenständige `AngebotsBot.exe` (danach braucht es kein Python mehr).
 - `start_mit_konsole.bat` – wie start.bat, zeigt aber Fehlermeldungen an.
 
@@ -58,12 +57,20 @@ Groß-/Kleinschreibung und Umlaute sind egal (`kuhlschrank` findet „Kühlschra
 | Lidl Prospekte (PDF + Produkte mit Preis) | geprüft; für Lidl Luxemburg Übersichtsseite von lidl.lu eintragen |
 | Direkter PDF-Link | für Händler mit fester PDF-Adresse ({kw} = Kalenderwoche) |
 | marktguru-Suche (Beta, Browser-Modus) | Lebensmittel-Angebote vieler Händler je Watchlist-Eintrag |
+| idealo | Produktseiten-Links von idealo in der Watchlist eintragen (Feld „Produkt-Links“) – der Bot liest den Bestpreis und führt einen Preisverlauf. Eine idealo-Suche gibt es bewusst nicht: idealo verbietet automatischen Zugriff auf die Suche (robots.txt) |
 
 Seiten mit Bot-Prüfung/Captcha (z. B. Kaufland) können nicht automatisch gelesen werden –
 dort das Prospekt-PDF herunterladen und über **„PDF importieren …“** einlesen.
 
 Bitte die Intervalle nicht zu klein machen (Standard 30 Minuten, Prospekte 12 Stunden) – das schont die Seiten
 und verhindert Sperren.
+
+## Browser-Modus
+
+Manche Seiten (z. B. marktguru) zeigen ihre Angebote erst per JavaScript. Dafür gibt es den Browser-Modus:
+in den *Einstellungen* den Haken setzen – der Rest passiert automatisch. Es wird dein installiertes
+Microsoft Edge unsichtbar benutzt; nur falls das nicht klappt, wird einmalig Chromium (ca. 150 MB) in den
+Datenordner geladen.
 
 ## Region
 

@@ -14,6 +14,5 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt || (echo Fehler bei der Installation & pause & exit /b 1)
 echo.
 echo Fertig! Starten mit start.bat
-echo Optional: install_browser_mode.bat (fuer marktguru / JavaScript-Seiten)
 echo Optional: autostart_einrichten.bat (startet AngebotsBot mit Windows im Infobereich)
 pause

@@ -248,3 +248,15 @@ def test_migration_and_aldi_title(tmp_path, monkeypatch):
     res = eng.run()
     assert not res.errors, res.errors
     assert [r["title"] for r in eng.db.prospekte()] == ["kw47-26-op-mp"]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Edge-Test nur unter Windows")
+def test_browser_mode_windows(tmp_path, monkeypatch):
+    monkeypatch.setenv("ANGEBOTSBOT_DATA", str(tmp_path))
+    from angebotsbot.core import browser_setup
+    from angebotsbot.core.net import Fetcher
+    channel = browser_setup.ensure(lambda m: None)
+    assert channel in ("msedge", "chromium")
+    html = Fetcher({"browser_mode": True, "browser_channel": channel, "timeout_s": 30, "request_delay_s": 0}) \
+        .render("data:text/html,<h1>hallo</h1>", wait_ms=100)
+    assert "hallo" in html

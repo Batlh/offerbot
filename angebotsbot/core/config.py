@@ -22,7 +22,8 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "request_delay_s": 1.5,  # Pause zwischen Anfragen an dieselbe Seite
     "timeout_s": 20,
     "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36",
-    "browser_mode": False,  # Playwright für JS-Seiten erlauben (muss installiert sein)
+    "browser_mode": False,  # echter Browser für JS-Seiten (richtet sich beim Anhaken selbst ein)
+    "browser_channel": "",  # msedge oder chromium – wird bei der Einrichtung gesetzt
     "ocr": True,  # Texterkennung für Bild-Prospekte
     "close_to_tray": True,  # Fenster schließen = im Infobereich weiterlaufen
     "region": {"ort": "Trier", "plz": "54290"},  # für kaufDA & Platzhalter {ort}/{plz} in Quellen-URLs

@@ -11,14 +11,6 @@ from ..core.prospekte.pdftext import ocr_available
 from .common import Task, error_box, open_local
 
 
-def playwright_available() -> bool:
-    try:
-        import playwright  # noqa: F401
-        return True
-    except ImportError:
-        return False
-
-
 class SettingsTab(QWidget):
     def __init__(self, main):
         super().__init__()
@@ -64,7 +56,7 @@ class SettingsTab(QWidget):
         self.delay = QDoubleSpinBox(minimum=0.5, maximum=30, decimals=1, suffix=" s")
         self.timeout = QSpinBox(minimum=5, maximum=120, suffix=" s")
         self.ua = QLineEdit()
-        self.browser = QCheckBox("Browser-Modus erlauben (für JavaScript-Seiten wie marktguru)")
+        self.browser = QCheckBox("Browser-Modus (für JavaScript-Seiten wie marktguru) – richtet sich beim Anhaken selbst ein")
         self.browser_state = QLabel()
         f2.addRow("Pause zwischen Anfragen je Seite", self.delay)
         f2.addRow("Zeitlimit je Anfrage", self.timeout)
@@ -135,6 +127,8 @@ class SettingsTab(QWidget):
 
         self.b_save.clicked.connect(self.save)
         self.b_ai_test.clicked.connect(self.test_ai)
+        self._loading = False
+        self.browser.toggled.connect(self.browser_toggled)
         self.load()
 
     def pick_dir(self):
@@ -157,9 +151,15 @@ class SettingsTab(QWidget):
         self.delay.setValue(float(s["request_delay_s"]))
         self.timeout.setValue(int(s["timeout_s"]))
         self.ua.setText(s["user_agent"])
+        self._loading = True
         self.browser.setChecked(bool(s["browser_mode"]))
-        self.browser_state.setText("Playwright installiert ✔" if playwright_available()
-                                   else "Playwright fehlt – einmal 'install_browser_mode.bat' ausführen")
+        self._loading = False
+        ch = {"msedge": "Microsoft Edge", "chromium": "Chromium"}.get(s.get("browser_channel", ""), "")
+        if s["browser_mode"] and ch:
+            self.browser_state.setText(f"Bereit ✔ (nutzt {ch})")
+        else:
+            self.browser_state.setText("Aus. Beim Anhaken wird alles automatisch eingerichtet "
+                                       "(nutzt dein Microsoft Edge, sonst einmaliger Download).")
         self.ocr.setChecked(bool(s["ocr"]))
         self.ocr_state.setText("Texterkennung bereit ✔" if ocr_available() else "OCR-Paket fehlt (rapidocr_onnxruntime)")
         self.ai_mode.setCurrentText(a.get("mode", "aus"))
@@ -179,7 +179,7 @@ class SettingsTab(QWidget):
                  notify=self.notify.isChecked(), close_to_tray=self.close_tray.isChecked(),
                  min_temperature=self.min_temp.value(), keep_days=self.keep_days.value(),
                  request_delay_s=self.delay.value(), timeout_s=self.timeout.value(),
-                 user_agent=self.ua.text().strip() or s["user_agent"], browser_mode=self.browser.isChecked(),
+                 user_agent=self.ua.text().strip() or s["user_agent"], browser_mode=self.browser.isChecked() and bool(s.get("browser_channel")),
                  ocr=self.ocr.isChecked(), export_dir=self.export_dir.text().strip(),
                  export_on_run=self.export_on_run.isChecked(),
                  region={"ort": self.ort.text().strip(), "plz": self.plz.text().strip()})
@@ -199,6 +199,42 @@ class SettingsTab(QWidget):
         self.load()
         self.main.status("Einstellungen gespeichert")
         self.main.schedule_changed()
+
+    def browser_toggled(self, on: bool):
+        if self._loading:
+            return
+        s = self.main.config.settings
+        if not on:
+            s["browser_mode"] = False
+            self.main.config.save()
+            self.load()
+            return
+        from ..core import browser_setup
+        self.browser.setEnabled(False)
+        self.browser_state.setText("Richte Browser-Modus ein … (Details im Protokoll)")
+        t = Task(lambda log, prog, cancelled: browser_setup.ensure(log), self)
+        t.log.connect(self.main.log)
+        t.log.connect(lambda m: self.browser_state.setText(m[:120]))
+
+        def done(channel):
+            s["browser_mode"] = True
+            s["browser_channel"] = channel
+            self.main.config.save()
+            self.browser.setEnabled(True)
+            self.load()
+            self.main.status("Browser-Modus ist eingerichtet")
+
+        def fail(msg):
+            s["browser_mode"] = False
+            self.main.config.save()
+            self.browser.setEnabled(True)
+            self.load()
+            error_box(self, "Browser-Modus", "Einrichtung fehlgeschlagen: " + msg)
+
+        t.finished_ok.connect(done)
+        t.failed.connect(fail)
+        self._bt = t
+        t.start()
 
     def test_ai(self):
         self.save()

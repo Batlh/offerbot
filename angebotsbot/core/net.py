@@ -76,18 +76,23 @@ class Fetcher:
         return target
 
     def render(self, url: str, wait_selector: str | None = None, wait_ms: int = 2500) -> str:
-        """Seite in echtem (unsichtbarem) Browser laden und Text-HTML zurückgeben."""
+        """Seite in echtem (unsichtbarem) Browser laden – für Seiten, die erst per JavaScript Inhalte zeigen."""
         if not self.settings.get("browser_mode"):
-            raise FetchError("Browser-Modus ist in den Einstellungen ausgeschaltet")
+            raise FetchError("Browser-Modus ist aus – in den Einstellungen den Haken setzen (richtet sich selbst ein)")
+        from .browser_setup import prepare_env
+        prepare_env()
         try:
             from playwright.sync_api import sync_playwright  # type: ignore
         except ImportError as e:
-            raise FetchError("Browser-Modus braucht Playwright: 'install_browser_mode.bat' ausführen") from e
+            raise FetchError("Browser-Modus noch nicht eingerichtet – Haken in den Einstellungen neu setzen") from e
+        channel = self.settings.get("browser_channel") or None
+        if channel == "chromium":
+            channel = None
         self._wait(url)
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            browser = p.chromium.launch(channel=channel, headless=True) if channel else p.chromium.launch(headless=True)
             try:
-                page = browser.new_page(user_agent=self.settings.get("user_agent"), locale="de-DE")
+                page = browser.new_page(locale="de-DE")
                 page.goto(url, timeout=int(float(self.settings.get("timeout_s", 20)) * 1000))
                 if wait_selector:
                     try:
