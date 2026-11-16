@@ -273,6 +273,7 @@ def test_amazon_quick_check(env, monkeypatch):
     assert [o.url[-10:] for o in offers] == ["B01AJ2ENGK", "B07287W616", "B001MZWR76"]  # ohne Gesponsert
     a, b, c = offers
     assert a.price == 49.0 and a.info.startswith("Amazons Tipp")
+    assert "Spar-Abo 1. Lieferung −20 % ≈ 39,20 €" in a.info, a.info
     assert b.price == 19.59 and b.old_price == 25.8 and b.unit_price.startswith("4,80") and b.unit_price.endswith("/kg")
     assert "Früher Black Friday" in b.info and "UVP" in b.info and "Coupon" in b.info
     assert c.price == 29.99 and "andere Anbieter" in c.info
@@ -292,3 +293,131 @@ def test_amazon_quick_check(env, monkeypatch):
     assert len(res) == 3 and len(hits) == 2
     assert {o.price for o in res if o.uid in hits} == {19.59, 29.99}
     assert len(db.matches()) == 2
+
+
+def test_units_and_base_prices(env):
+    cfg, db, eng = env
+    from angebotsbot.core.models import Offer
+    from angebotsbot.core.units import base_price, parse_quantity, parse_unit_price
+    assert parse_quantity("Sheba Multipack 4x12x85g") == (pytest.approx(4.08), "kg")
+    assert parse_quantity("Cat's Best 3 x 10 Liter") == (30.0, "l")
+    assert parse_quantity("streichzart 250-g-Pckg.") == (0.25, "kg")
+    assert parse_unit_price("1 kg = 5.16") == (5.16, "kg")
+    assert parse_unit_price("100 g = 0,89") == (8.9, "kg")
+    assert parse_unit_price("1.009,00 €/l") == (1009.0, "l")
+    assert base_price(19.59, "Cat's Best Universal 7 l") == (2.8, "l")
+    o = Offer("s", "S", "Kerrygold Butter 250 g", price=1.69, merchant="Lidl", kind="prospekt")
+    db.upsert_offers([o])
+    r = db.q("SELECT base_price, base_unit FROM offers")[0]
+    assert (r["base_price"], r["base_unit"]) == (6.76, "kg")
+
+
+def test_reference_price_shopping_report(env, tmp_path):
+    cfg, db, eng = env
+    from angebotsbot.core.models import Offer, WatchItem
+    from angebotsbot.core.report import weekly_report
+    w = WatchItem("Butter", keywords="butter", in_prospekte=True, in_deals=False)
+    cfg.watchlist = [w]
+    old = Offer("s", "S", "Kerrygold Butter 250 g", price=1.49, merchant="Lidl", kind="prospekt",
+                found_at="2026-11-10T08:00:00")
+    db.upsert_offers([old])
+    new = Offer("s", "S", "Kerrygold Butter 250 g", price=1.69, merchant="Lidl", kind="prospekt", valid_to="30.12.")
+    other = Offer("s", "S", "Landliebe Butter 250 g", price=1.29, merchant="REWE", kind="prospekt", valid_to="2099-01-01")
+    db.upsert_offers([new, other])
+    eng.match([new, other])
+    rows = {r["merchant"]: r for r in db.matches()}
+    ref, n = db.reference_price(rows["Lidl"])
+    assert n == 1 and ref == 1.49
+    from angebotsbot.gui.tab_matches import price_check_text
+    assert price_check_text(db, rows["Lidl"]).startswith("✘ 13 % über")
+    assert db.shopping_add(rows["REWE"]) and not db.shopping_add(rows["REWE"])
+    assert db.shopping()[0]["base"] == "5,16 €/kg"
+    paths, summary = weekly_report(db, cfg.watchlist, tmp_path)
+    md = paths[1].read_text(encoding="utf-8")
+    assert "**REWE**" in md and md.index("Landliebe") < md.index("Kerrygold")
+    assert summary.startswith("Butter: 1,29 € bei REWE")
+
+
+def test_flipbuilder_and_notify(env, monkeypatch):
+    cfg, db, eng = env
+    import io
+    from angebotsbot.core import engine as engmod, notify
+    from angebotsbot.core.models import Source
+    from angebotsbot.core.prospekte.fetchers import parse_flipbuilder_texts
+    js = 'var textForPages = ["Seite eins Café", "Butter 250 g 1,79 \\& mehr"];'
+    assert parse_flipbuilder_texts(js) == ["Seite eins Café", "Butter 250 g 1,79 & mehr"]
+    pm = pymupdf.open()
+    pg = pm.new_page(width=100, height=140)
+    jpg = pg.get_pixmap().tobytes("jpg")
+
+    class FFetcher(FakeFetcher):
+        def get(self, url, as_json=False, binary=False):
+            if url.endswith("/folders"):
+                return '<a href="https://delhaizefolder.lu/d2d472026/">x</a>'
+            if url.endswith("search_config.js"):
+                return js
+            if url.endswith(".jpg"):
+                return jpg
+            raise AssertionError(url)
+
+    monkeypatch.setattr(engmod, "Fetcher", lambda s: FFetcher({}))
+    cfg.settings["ocr"] = False
+    cfg.sources = [Source("Delhaize", "prospekt_flipbuilder", {"retailer": "Delhaize (LU)",
+                          "start_url": "https://www.delhaize.lu/fr/folders",
+                          "link_regex": r"https://delhaizefolder\.lu/[a-z0-9]+/"}, group="Prospekte")]
+    res = eng.run()
+    assert not res.errors, res.errors
+    p = db.prospekte()[0]
+    assert p["retailer"] == "Delhaize (LU)" and p["pages"] == 2 and p["indexed"] == 1
+    assert pymupdf.open(p["pdf_path"]).page_count == 2
+
+    sent = {}
+
+    class R:
+        status_code = 200
+        text = "ok"
+
+    monkeypatch.setattr(notify.requests, "post", lambda url, **k: (sent.update(url=url, **k), R())[1])
+    notify.send({"phone": {"mode": "ntfy", "ntfy_topic": "abc", "ntfy_server": "https://ntfy.sh"}}, "Titel äö", "Text")
+    assert sent["url"] == "https://ntfy.sh" and sent["json"]["topic"] == "abc" and sent["json"]["title"] == "Titel äö"
+    notify.send({"phone": {"mode": "aus"}}, "x", "y")  # nichts passiert
+
+
+def test_bonial_fallback(env, monkeypatch):
+    cfg, db, eng = env
+    from angebotsbot.core import engine as engmod
+    from angebotsbot.core.models import Source, WatchItem
+    from angebotsbot.core.net import FetchError
+    calls = []
+
+    class BFetcher(FakeFetcher):
+        def get(self, url, as_json=False, binary=False):
+            calls.append(url)
+            if url == "https://www.bonial.fr/Promos/Beurre":
+                return (FIX / "kaufda_butter.html").read_text(encoding="utf-8")
+            raise FetchError("HTTP 404 bei " + url)
+
+    monkeypatch.setattr(engmod, "Fetcher", lambda s: BFetcher({}))
+    cfg.settings["region"]["ort_fr"] = "Thionville"
+    cfg.sources = [Source("Bonial", "bonial", {"themen": "", "national": True}, group="Prospekte")]
+    cfg.watchlist = [WatchItem("Butter", keywords="butter", query_fr="beurre", in_prospekte=True, in_deals=False)]
+    res = eng.run()
+    assert not res.errors, res.errors
+    assert calls[0] == "https://www.bonial.fr/Thionville/Promos/Beurre"
+    assert res.new_matches and all("landesweit" in o.info for o, _ in res.new_matches)
+
+
+def test_debug_package(env):
+    cfg, db, eng = env
+    import zipfile
+    from angebotsbot.core import logsetup
+    cfg.settings["phone"]["ntfy_topic"] = "geheim123"
+    cfg.save()
+    logsetup.setup(True)
+    logsetup.LOG.debug("Testeintrag")
+    p = logsetup.debug_package(db)
+    with zipfile.ZipFile(p) as z:
+        names = z.namelist()
+        cfg_txt = z.read("config_ohne_geheimnisse.json").decode("utf-8")
+    assert "logs/angebotsbot.log" in names and "status.json" in names
+    assert "geheim123" not in cfg_txt

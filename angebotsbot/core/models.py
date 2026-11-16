@@ -69,6 +69,7 @@ class WatchItem:
     in_prospekte: bool = False  # gegen Prospekte prüfen
     search_online: bool = True  # Suchquellen (Geizhals, Shop-Suchen) gezielt danach suchen lassen
     query: str = ""  # Suchtext für Suchquellen (leer = Name)
+    query_fr: str = ""  # Suchtext für französische Seiten (leer = query/Name)
     urls: list[str] = field(default_factory=list)  # Produktseiten für direkte Preisüberwachung
     notes: str = ""
     enabled: bool = True

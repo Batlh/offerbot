@@ -7,8 +7,24 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QFileDialog, QHBoxLayout, Q
                                QPushButton, QVBoxLayout, QWidget)
 
 from ..core.models import WatchItem
+from ..core.prices import fmt_price
 from ..core.report import export
+from ..core.units import fmt_base
 from .common import Col, discount_text, make_table, open_local, open_url, price, selected_rows, valid_text
+
+
+def price_check_text(db, r) -> str:
+    """'Tiefstpreis ✔' / '12 % unter bisher' / '8 % über 30-Tage-Tief' / ''"""
+    if r["price"] is None:
+        return ""
+    ref, n = db.reference_price(r)
+    if not n or ref is None:
+        return ""
+    if r["price"] < ref - 0.005:
+        return f"✔ {round((1 - r['price'] / ref) * 100)} % unter bisher"
+    if abs(r["price"] - ref) < 0.005:
+        return "✔ gleich Tiefstpreis"
+    return f"✘ {round((r['price'] / ref - 1) * 100)} % über 30-T.-Tief ({fmt_price(ref)})"
 
 
 def _short_ts(v) -> str:
@@ -32,7 +48,11 @@ class MatchesTab(QWidget):
         self.show_hidden = QCheckBox("Ausgeblendete zeigen")
         btn_read = QPushButton("Alle als gelesen")
         btn_export = QPushButton("Exportieren …")
-        for w in (self.search, self.watch_filter, self.kind_filter, self.only_new, self.show_hidden, btn_read, btn_export):
+        btn_week = QPushButton("Wochenbericht")
+        btn_week.setToolTip("Je Watchlist-Eintrag die günstigsten aktuellen Angebote als Bericht (HTML, Markdown, CSV)")
+        btn_week.clicked.connect(lambda: self.main.weekly_report(manual=True))
+        for w in (self.search, self.watch_filter, self.kind_filter, self.only_new, self.show_hidden, btn_read, btn_week,
+                  btn_export):
             top.addWidget(w)
         top.setStretch(0, 1)
         lay.addLayout(top)
@@ -44,12 +64,16 @@ class MatchesTab(QWidget):
             Col("Vorher", lambda r: discount_text(r["price"], r["old_price"]), sort=lambda r: r["old_price"], width=130),
             Col("Händler", lambda r: r["merchant"], width=110),
             Col("Gültig", valid_text, width=140),
-            Col("Grundpreis", lambda r: r["unit_price"], width=90),
+            Col("Grundpreis", lambda r: fmt_base(r["base_price"], r["base_unit"]) or r["unit_price"],
+                sort=lambda r: r["base_price"], align_right=True, width=95),
+            Col("Preis-Check", lambda r: self._check(r), width=150,
+                tooltip=lambda r: "Vergleich mit dem tiefsten Preis der letzten 30 Tage (soweit der Bot ihn kennt)"),
             Col("Grad", lambda r: "" if r["temperature"] is None else f"{r['temperature']:.0f}°",
                 sort=lambda r: r["temperature"], align_right=True, width=55),
             Col("Quelle", lambda r: r["source_name"], width=150),
             Col("Info", lambda r: r["info"]),
         ]
+        self._checks: dict = {}
         self.view, self.model, self.proxy = make_table(cols, self)
         self.model.bold = lambda r: not r["seen"]
         self.model.grey = lambda r: bool(r["hidden"])
@@ -79,7 +103,14 @@ class MatchesTab(QWidget):
         self.watch_filter.setCurrentIndex(max(0, i))
         self.watch_filter.blockSignals(False)
 
+    def _check(self, r) -> str:
+        key = r["offer_uid"]
+        if key not in self._checks:
+            self._checks[key] = price_check_text(self.main.db, r)
+        return self._checks[key]
+
     def refresh(self):
+        self._checks = {}
         rows = self.main.db.matches(include_hidden=self.show_hidden.isChecked())
         if self.watch_filter.currentIndex() > 0:
             rows = [r for r in rows if r["watch_name"] == self.watch_filter.currentText()]
@@ -117,8 +148,8 @@ class MatchesTab(QWidget):
         m.addAction("Wieder einblenden" if hidden else "Ausblenden",
                     lambda: self._flag(rows, "hidden", 0 if hidden else 1))
         m.addAction("Link kopieren", lambda: QGuiApplication.clipboard().setText("\n".join(r["url"] for r in rows)))
-        if rows[0]["kind"] in ("preis",) and rows[0]["url"]:
-            m.addAction("Preisverlauf anzeigen", lambda: self.main.show_price_history(rows[0]["url"]))
+        m.addAction("Auf den Einkaufszettel", lambda: self.main.add_to_shopping(rows))
+        m.addAction("Preisverlauf anzeigen", lambda: self.main.show_price_history(rows[0]))
         m.exec(self.view.viewport().mapToGlobal(pos))
 
     def _flag(self, rows, flag, val):
@@ -160,6 +191,8 @@ class OffersTab(QWidget):
             Col("Preis", lambda r: price(r["price"]), sort=lambda r: r["price"], align_right=True, width=85),
             Col("Vorher", lambda r: discount_text(r["price"], r["old_price"]), sort=lambda r: r["old_price"], width=130),
             Col("Händler", lambda r: r["merchant"], width=110),
+            Col("Grundpreis", lambda r: fmt_base(r["base_price"], r["base_unit"]) or r["unit_price"],
+                sort=lambda r: r["base_price"], align_right=True, width=95),
             Col("Grad", lambda r: "" if r["temperature"] is None else f"{r['temperature']:.0f}°",
                 sort=lambda r: r["temperature"], align_right=True, width=55),
             Col("Gültig", valid_text, width=140),
@@ -201,6 +234,8 @@ class OffersTab(QWidget):
         m = QMenu(self)
         m.addAction("Öffnen", self.open_selected)
         m.addAction("Zur Watchlist hinzufügen", lambda: self.add_watch(rows[0]))
+        m.addAction("Auf den Einkaufszettel", lambda: self.main.add_to_shopping(rows))
+        m.addAction("Preisverlauf anzeigen", lambda: self.main.show_price_history(rows[0]))
         m.exec(self.view.viewport().mapToGlobal(pos))
 
     def add_watch(self, r):

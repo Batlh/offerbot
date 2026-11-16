@@ -21,6 +21,8 @@ BASE = "https://www.kaufda.de"
 def _ascii(s: str) -> str:
     for a, b in (("ä", "ae"), ("ö", "oe"), ("ü", "ue"), ("Ä", "Ae"), ("Ö", "Oe"), ("Ü", "Ue"), ("ß", "ss")):
         s = s.replace(a, b)
+    import unicodedata  # französische Akzente: Litière → Litiere
+    s = "".join(c for c in unicodedata.normalize("NFKD", s) if not unicodedata.combining(c))
     return re.sub(r"[^A-Za-z0-9 -]+", " ", s)
 
 
@@ -93,54 +95,75 @@ def _get(ctx: RunContext, url: str, browser: bool) -> str | None:
         raise
 
 
-def run(ctx: RunContext, source: Source) -> list[Offer]:
+PORTALS = {
+    # key: (Basis-URL, Pfad, Region-Schlüssel, Watchlist-Feld für den Suchtext)
+    "kaufda": ("https://www.kaufda.de", "Angebote", "ort", "query"),
+    "bonial": ("https://www.bonial.fr", "Promos", "ort_fr", "query_fr"),
+}
+
+
+def run_portal(ctx: RunContext, source: Source, portal: str) -> list[Offer]:
+    base, path, region_key, query_field = PORTALS[portal]
     st = source.settings
-    ort = (st.get("ort") or (ctx.settings.get("region") or {}).get("ort") or "").strip()
+    ort = (st.get("ort") or (ctx.settings.get("region") or {}).get(region_key) or "").strip()
     if not ort:
         raise ValueError("Kein Ort eingetragen (Einstellungen → Region)")
     ort_slug = quote("-".join(w[:1].upper() + w[1:] for w in _ascii(ort).split()))
     allowed = [r.strip().lower() for r in (st.get("retailers") or "").split(",") if r.strip()]
     max_results = int(st.get("max_results") or 40)
     browser = bool(st.get("browser"))
+    national = bool(st.get("national", portal == "bonial"))
     out: list[Offer] = []
     missing: list[str] = []
     wrong_loc = ""
 
     def collect(slugs: list[str], kind: str, watch_id: str = "") -> bool:
         nonlocal wrong_loc
-        for slug in slugs:
+        urls = [f"{base}/{ort_slug}/{path}/{quote(s)}" for s in slugs]
+        if national:  # Fallback: landesweite Seite (z. B. bonial.fr/Promos/Beurre)
+            urls += [f"{base}/{path}/{quote(s)}" for s in slugs]
+        for url in urls:
             if ctx.cancel():
                 return False
-            url = f"{BASE}/{ort_slug}/Angebote/{quote(slug)}"
             html_text = _get(ctx, url, browser)
             if html_text is None:
                 continue
             offers, city = parse_page(html_text, url, source, kind)
-            if city and city.lower() != ort.lower():
+            if city and city.lower() != ort.lower() and f"/{ort_slug}/" in url:
                 wrong_loc = city
             for o in offers[:max_results]:
                 if allowed and not any(a in o.merchant.lower() for a in allowed):
                     continue
+                if f"/{ort_slug}/" not in url:
+                    o.info = ("landesweit · " + o.info).strip(" ·")
                 o.watch_id = watch_id
                 out.append(o)
             return True
         return False
 
-    # feste Themen (z. B. Black-Week) → als Deals gegen die ganze Watchlist abgleichen
     for thema in [t.strip() for t in (st.get("themen") or "").split(",") if t.strip()]:
         if not collect([thema] + slug_candidates(thema), "deal"):
             missing.append(thema)
-    # je Watchlist-Eintrag mit Prospekte + gezielt suchen
     for w in ctx.watchlist:
         if w.enabled and w.in_prospekte and w.search_online:
-            if not collect(slug_candidates(w.search_text), "prospekt", w.id):
-                missing.append(w.search_text)
+            q = (getattr(w, query_field, "") or "").strip() or w.search_text
+            if not collect(slug_candidates(q), "prospekt", w.id):
+                missing.append(q)
+    name = "kaufDA" if portal == "kaufda" else "Bonial"
     if missing:
-        ctx.log(f"kaufDA: keine eigene Seite für {', '.join(missing)} – im Watchlist-Eintrag einen einfacheren "
-                f"Suchtext (ein Wort, z. B. 'Kaffeebohnen') eintragen")
+        ctx.log(f"{name}: keine eigene Seite für {', '.join(missing)} – im Watchlist-Eintrag einen einfacheren "
+                f"Suchtext (ein Wort{', auf Französisch' if portal == 'bonial' else ''}) eintragen")
     if wrong_loc:
-        ctx.log(f"kaufDA: Ort wurde als '{wrong_loc}' erkannt – Schreibweise des Orts prüfen")
+        ctx.log(f"{name}: Ort wurde als '{wrong_loc}' erkannt – Schreibweise des Orts prüfen")
     return out
+
+
+def run(ctx: RunContext, source: Source) -> list[Offer]:
+    return run_portal(ctx, source, "kaufda")
+
+
+def run_bonial(ctx: RunContext, source: Source) -> list[Offer]:
+    return run_portal(ctx, source, "bonial")
 
 
 register(SourceType(
@@ -156,4 +179,19 @@ register(SourceType(
             FieldSpec("max_results", "Max. Angebote je Seite", kind="int", default=40),
             FieldSpec("browser", "Im Browser-Modus laden", kind="bool", default=False)],
     run=run,
+))
+
+register(SourceType(
+    key="bonial", label="Bonial.fr – französische Supermärkte (Carrefour, Leclerc, Auchan …)", group="Prospekte",
+    description="Wie kaufDA, aber für Frankreich: Angebote von Carrefour, E.Leclerc, Auchan, Intermarché, Super U, Lidl "
+                "und Aldi Frankreich. Gesucht wird mit dem französischen Suchtext des Watchlist-Eintrags (z. B. Beurre, "
+                "Litiere) – leer = normaler Suchtext (gut für Marken wie Nutella). Hat der Ort keine eigene Seite, "
+                "werden die landesweiten Angebote genommen.",
+    fields=[FieldSpec("themen", "Feste Themen (Komma-getrennt)", default="Black-Friday"),
+            FieldSpec("ort", "Ort in Frankreich (leer = Einstellungen → Region)", help="z. B. Thionville oder Metz"),
+            FieldSpec("retailers", "Nur diese Händler (optional)", help="z. B. Carrefour, Leclerc, Auchan, Intermarché"),
+            FieldSpec("national", "Landesweite Angebote nehmen, wenn der Ort keine Seite hat", kind="bool", default=True),
+            FieldSpec("max_results", "Max. Angebote je Seite", kind="int", default=40),
+            FieldSpec("browser", "Im Browser-Modus laden", kind="bool", default=False)],
+    run=run_bonial,
 ))

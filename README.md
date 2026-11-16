@@ -26,7 +26,8 @@ Optional:
 1. **Watchlist**: Was du suchst. Name, Stichwörter, Höchstpreis, optional Mindest-Rabatt.
    Häkchen, ob gegen *Deals & Shops* und/oder *Prospekte* geprüft wird.
    Der Knopf **„Amazon prüfen“** sucht den Eintrag einmalig bei Amazon und zeigt Preise, Streichpreise,
-   Grundpreise und Hinweise wie „Früher Black Friday“ direkt im Bot an (gesponserte Ergebnisse ausgeblendet).
+   Grundpreise, Spar-Abo-Rabatte und Hinweise wie „Früher Black Friday“ direkt im Bot an (gesponserte Ergebnisse
+   ausgeblendet).
    Das passiert nur auf Knopfdruck, nie automatisch. Zeigt Amazon ein Captcha, bricht der Bot ab.
    Der Knopf **„Im Browser ansehen“** öffnet die Suche nach dem Eintrag bei idealo, Geizhals, mydealz, Amazon
    oder kaufDA in deinem normalen Browser (Liste unter *Einstellungen* änderbar).
@@ -36,7 +37,24 @@ Optional:
    was erkannt wird, ohne etwas zu speichern. „Neue Quelle ▾“ legt weitere an.
 3. **Treffer**: Alles, was zur Watchlist passt. Doppelklick öffnet den Deal bzw. die Prospektseite.
 4. **Prospekte**: geladene/importierte PDFs, Viewer mit Markierung, Suche über alle Prospekte,
-   Unter-Tab **Preisvergleich** (günstigster Händler je Watchlist-Eintrag).
+   Unter-Tab **Preisvergleich** (günstigster Händler je Watchlist-Eintrag, sortiert nach Grundpreis).
+5. **Einkaufszettel**: Rechtsklick auf einen Treffer → „Auf den Einkaufszettel“. Nach Läden sortiert, abhaken,
+   drucken oder aufs Handy schicken.
+
+### Grundpreise und „Preis-Check“
+
+Der Bot rechnet Angebote auf €/kg, €/l oder €/Stück um (aus dem angegebenen Grundpreis oder der Menge im Titel,
+z. B. „4x12x85g“ oder „3 x 10 Liter“). Die Spalte **Preis-Check** zeigt, ob der Preis wirklich günstig ist:
+verglichen mit dem tiefsten Preis der letzten 30 Tage, den der Bot für dasselbe Angebot kennt.
+Rechtsklick → **Preisverlauf** zeigt dazu ein Diagramm.
+
+### Handy und Wochenbericht
+
+- *Einstellungen → Handy-Benachrichtigung*: **ntfy** (App „ntfy“ installieren, Thema abonnieren – ohne Konto)
+  oder **Telegram** (eigener Bot). Neue Treffer, Wochenbericht und Einkaufszettel kommen dann aufs Handy.
+- *Einstellungen → Wochenbericht*: z. B. jeden Montag ab 7 Uhr je Watchlist-Eintrag die drei günstigsten aktuellen
+  Angebote und welcher Laden sich lohnt – als HTML, Markdown und CSV im Export-Ordner unter `Wochenberichte`.
+  Oder jederzeit über den Knopf „Wochenbericht“ bei den Treffern.
 
 ### Stichwort-Regeln
 
@@ -61,6 +79,11 @@ Groß-/Kleinschreibung und Umlaute sind egal (`kuhlschrank` findet „Kühlschra
 | kaufDA – Angebote in deiner Region | Prospekt-Angebote aller Händler im eingestellten Ort, je Watchlist-Eintrag + Themen wie Black-Week |
 | Lidl Prospekte (PDF + Produkte mit Preis) | geprüft; für Lidl Luxemburg Übersichtsseite von lidl.lu eintragen |
 | Direkter PDF-Link | für Händler mit fester PDF-Adresse ({kw} = Kalenderwoche) |
+| Lidl Luxemburg | Prospekt-PDFs über lidl.lu |
+| ALDI Luxemburg | Wochen-Prospekt als PDF über folder.aldi.lu |
+| Delhaize Luxemburg | Seiten und Text direkt aus dem Online-Prospekt |
+| Bonial.fr – Frankreich | Carrefour, E.Leclerc, Auchan, Intermarché, Super U, Lidl/Aldi FR – für den Ort unter *Region → Ort Frankreich* (Standard Thionville), sonst landesweit. Französischer Suchtext je Watchlist-Eintrag im Feld „Suchtext FR“ |
+| Cactus, Auchan Luxemburg, Metro | kein sauberer Download (Issuu/Flipsnack bzw. nur mit Kundenkonto) – PDF über „PDF importieren …“ einlesen |
 | marktguru-Suche (Beta, Browser-Modus) | Lebensmittel-Angebote vieler Händler je Watchlist-Eintrag |
 | idealo | Produktseiten-Links von idealo in der Watchlist eintragen (Feld „Produkt-Links“) – der Bot liest den Bestpreis und führt einen Preisverlauf. Eine idealo-Suche gibt es bewusst nicht: idealo verbietet automatischen Zugriff auf die Suche (robots.txt) |
 
@@ -91,6 +114,13 @@ Standard ist **aus**: Prospekte werden lokal per Texterkennung (OCR) durchsucht,
 dann werden Prospektseiten als Bild an die KI geschickt und alle Angebote sauber erkannt
 (Produkt, Preis, Streichpreis, Grundpreis, Hinweise wie „nur mit App“). Standardmäßig nur Seiten mit
 Watchlist-Treffern, damit es günstig bleibt. API-Schlüssel werden im Windows-Anmeldeinformations-Tresor gespeichert.
+
+## Fehlersuche
+
+Im Tab **Protokoll**: „Log-Ordner öffnen“ und „Debug-Paket erstellen“ (ZIP mit Logs, Absturzberichten,
+Quellenstatus und Konfiguration – ohne Passwörter, Schlüssel und ntfy-Thema). Für ausführliche Logs
+*Einstellungen → Fehlersuche → Debug-Modus* einschalten: dann steht jede Anfrage mit Statuscode und Dauer im Log.
+Abstürze landen zusätzlich als `absturz_….txt` im Log-Ordner.
 
 ## Daten
 

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .models import Offer, now_iso
+from .units import base_price
 from .paths import data_dir
 
 SCHEMA = """
@@ -34,6 +35,11 @@ CREATE TABLE IF NOT EXISTS prospekte (
     pdf_path TEXT, valid_from TEXT, valid_to TEXT, fetched TEXT, pages INTEGER DEFAULT 0,
     indexed INTEGER DEFAULT 0, ai_done INTEGER DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS shopping (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, offer_uid TEXT UNIQUE, title TEXT, price REAL, merchant TEXT,
+    base TEXT, valid_to TEXT, url TEXT, added TEXT, done INTEGER DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS prospekt_pages (
     prospekt_id INTEGER, page INTEGER, text TEXT, ocr INTEGER DEFAULT 0,
     PRIMARY KEY (prospekt_id, page)
@@ -49,6 +55,17 @@ class Database:
         self.conn.row_factory = sqlite3.Row
         with self._lock:
             self.conn.executescript(SCHEMA)
+            cols = {r[1] for r in self.conn.execute("PRAGMA table_info(offers)")}
+            added = False
+            for col, typ in (("base_price", "REAL"), ("base_unit", "TEXT")):
+                if col not in cols:  # ältere Datenbanken erweitern
+                    self.conn.execute(f"ALTER TABLE offers ADD COLUMN {col} {typ}")
+                    added = True
+            if added:  # Grundpreise für vorhandene Angebote nachberechnen
+                for r in self.conn.execute("SELECT uid, price, title, unit_price, info FROM offers").fetchall():
+                    bp = base_price(r["price"], r["title"] or "", r["unit_price"] or "", r["info"] or "")
+                    if bp:
+                        self.conn.execute("UPDATE offers SET base_price=?, base_unit=? WHERE uid=?", (bp[0], bp[1], r["uid"]))
             self.conn.commit()
 
     def q(self, sql: str, args: Iterable[Any] = ()) -> list[sqlite3.Row]:
@@ -75,13 +92,15 @@ class Database:
                                       (ts, o.temperature, uid))
                     continue
                 d = o.to_dict()
+                bp = base_price(o.price, o.title, o.unit_price, o.info)
                 self.conn.execute(
                     "INSERT INTO offers (uid, source_id, source_name, kind, title, url, price, old_price, merchant,"
-                    " category, image, temperature, published, valid_from, valid_to, unit_price, info, found_at, last_seen)"
-                    " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                    " category, image, temperature, published, valid_from, valid_to, unit_price, info, found_at, last_seen,"
+                    " base_price, base_unit) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (uid, d["source_id"], d["source_name"], d["kind"], d["title"], d["url"], d["price"],
                      d["old_price"], d["merchant"], d["category"], d["image"], d["temperature"], d["published"],
-                     d["valid_from"], d["valid_to"], d["unit_price"], d["info"], d["found_at"], ts))
+                     d["valid_from"], d["valid_to"], d["unit_price"], d["info"], d["found_at"], ts,
+                     bp[0] if bp else None, bp[1] if bp else None))
                 new.append(o)
             self.conn.commit()
         return new
@@ -132,6 +151,56 @@ class Database:
 
     def price_series(self, key: str) -> list[sqlite3.Row]:
         return self.q("SELECT price, merchant, ts FROM price_history WHERE key=? ORDER BY ts", (key,))
+
+    def reference_price(self, row) -> tuple[float | None, int]:
+        """Bisheriger Tiefstpreis (30 Tage) für dieses Angebot: (Preis, Anzahl Vergleichswerte)."""
+        cutoff = (datetime.now() - timedelta(days=30)).isoformat(timespec="seconds")
+        url = row["url"] or ""
+        if row["kind"] == "preis" and url.startswith("http"):
+            for key in (url, "gh:" + url.split("?")[0]):
+                r = self.q("SELECT MIN(price) mn, COUNT(*) n FROM price_history WHERE key=? AND ts>=? AND ts<?",
+                           (key, cutoff, row["found_at"] or now_iso()))[0]
+                if r["n"]:
+                    return r["mn"], r["n"]
+        r = self.q("SELECT MIN(price) mn, COUNT(*) n FROM offers WHERE merchant=? AND lower(title)=lower(?) "
+                   "AND uid<>? AND found_at>=? AND price IS NOT NULL",
+                   (row["merchant"] or "", row["title"] or "", row["uid"], cutoff))[0]
+        return r["mn"], r["n"]
+
+    def series_for(self, row) -> list[tuple[str, float, str]]:
+        """Preisverlauf für Diagramm: (Zeit, Preis, Händler)."""
+        url = row["url"] or ""
+        for key in (url, "gh:" + url.split("?")[0]):
+            rows = self.price_series(key)
+            if rows:
+                return [(r["ts"], r["price"], r["merchant"] or "") for r in rows]
+        rows = self.q("SELECT found_at ts, price, merchant FROM offers WHERE merchant=? AND lower(title)=lower(?) "
+                      "AND price IS NOT NULL ORDER BY found_at", (row["merchant"] or "", row["title"] or ""))
+        return [(r["ts"], r["price"], r["merchant"] or "") for r in rows]
+
+    # ---------- Einkaufszettel ----------
+    def shopping_add(self, row) -> bool:
+        from .units import fmt_base
+        with self._lock:
+            cur = self.conn.execute(
+                "INSERT OR IGNORE INTO shopping (offer_uid, title, price, merchant, base, valid_to, url, added) "
+                "VALUES (?,?,?,?,?,?,?,?)",
+                (row["uid"], row["title"], row["price"], row["merchant"] or "Sonstige",
+                 fmt_base(row["base_price"], row["base_unit"]) if "base_price" in row.keys() else "",
+                 row["valid_to"] or "", row["url"] or "", now_iso()))
+            self.conn.commit()
+            return cur.rowcount > 0
+
+    def shopping(self) -> list[sqlite3.Row]:
+        return self.q("SELECT * FROM shopping ORDER BY merchant, done, title")
+
+    # ---------- Sonstiges ----------
+    def meta_get(self, key: str, default: str = "") -> str:
+        r = self.q("SELECT value FROM meta WHERE key=?", (key,))
+        return r[0]["value"] if r else default
+
+    def meta_set(self, key: str, value: str) -> None:
+        self.x("INSERT OR REPLACE INTO meta (key, value) VALUES (?,?)", (key, value))
 
     # ---------- Quellenstatus ----------
     def set_status(self, source_id: str, ok: bool, count: int = 0, error: str = "") -> None:

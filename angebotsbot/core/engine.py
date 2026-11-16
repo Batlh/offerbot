@@ -4,6 +4,7 @@ Diese Klasse kennt keine GUI – eine spätere Handy-/Web-Oberfläche kann sie g
 """
 from __future__ import annotations
 
+import logging
 import traceback
 from dataclasses import dataclass, field
 from typing import Callable
@@ -15,6 +16,9 @@ from .models import Offer, Source, WatchItem
 from .net import Fetcher
 from .prospekte import analyze
 from .sources import REGISTRY, RunContext
+
+
+LOG = logging.getLogger("angebotsbot.engine")
 
 
 @dataclass
@@ -82,13 +86,13 @@ class Engine:
                 all_offers.extend(offers)
                 self.db.set_status(src.id, True, len(offers))
                 self.log(f"✓ {src.name}: {len(offers)} Einträge")
+                LOG.debug("Quelle %s: %d Einträge, Einstellungen %s", src.name, len(offers), src.settings)
             except Exception as e:
                 msg = str(e) or e.__class__.__name__
                 res.errors[src.name] = msg
                 self.db.set_status(src.id, False, 0, msg)
                 self.log(f"✗ {src.name}: {msg}")
-                if not str(e):
-                    self.log(traceback.format_exc(limit=3))
+                LOG.error("Quelle %s (%s) fehlgeschlagen: %s\n%s", src.name, src.type, msg, traceback.format_exc())
         res.offers = len(all_offers)
         res.new_offers = len(self.db.upsert_offers(all_offers))
         res.new_prospekte = list(ctx.extra.get("new_prospekte", []))
@@ -135,6 +139,7 @@ class Engine:
                                       cancel)
                 except Exception as e:
                     self.log(f"✗ Prospekt {r['title']}: {e}")
+                    LOG.exception("Prospekt %s konnte nicht gelesen werden", r["title"])
                     continue
             want_ai = ai_s.get("mode", "aus") != "aus" and (force_ai or (ai_s.get("use_for_prospekte") and not r["ai_done"]))
             if want_ai:
@@ -211,6 +216,7 @@ class Engine:
             offers = st.run(ctx, src)
             return offers, logs, ""
         except Exception as e:
+            LOG.exception("Test der Quelle %s fehlgeschlagen", src.name)
             return [], logs, str(e) or e.__class__.__name__
         finally:
             self.log = old_log

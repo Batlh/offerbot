@@ -26,7 +26,11 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "browser_channel": "",  # msedge oder chromium – wird bei der Einrichtung gesetzt
     "ocr": True,  # Texterkennung für Bild-Prospekte
     "close_to_tray": True,  # Fenster schließen = im Infobereich weiterlaufen
-    "region": {"ort": "Trier", "plz": "54290"},
+    "region": {"ort": "Trier", "plz": "54290", "ort_fr": "Thionville"},
+    "debug": False,  # ausführliches Debug-Log (data/logs)
+    "phone": {"mode": "aus", "ntfy_server": "https://ntfy.sh", "ntfy_topic": "", "telegram_chat_id": "",
+              "only_new_matches": True},
+    "weekly_report": {"enabled": False, "weekday": 0, "hour": 7, "send_phone": True},
     # Knopf "Im Browser ansehen": öffnet diese Seiten in deinem Browser ({query} = Suchtext, {ort}/{plz} = Region)
     "browse_sites": [
         ["idealo", "https://www.idealo.de/preisvergleich/MainSearchProductCategory.html?q={query}"],
@@ -54,6 +58,36 @@ ALDI_SETTINGS = {
     "pdf_regex": r"https://[^\"'\s<>]+?\.pdf[^\"'\s<>]*",
     "max_pdfs": 1,
 }
+
+
+def lu_fr_sources() -> list[Source]:
+    """Luxemburg und Frankreich (ab Version 1.4)."""
+    return [
+        Source("Lidl Luxemburg", "prospekt_schwarz", {
+            "retailer": "Lidl (LU)",
+            "start_url": "https://www.lidl.lu/c/folders/s10019808",
+            "flyer_regex": r"/l/[a-z]{2}/depliants-en-ligne/(folder-[0-9-]+)/",
+            "endpoint": "https://endpoints.leaflets.schwarz/v4/flyer?flyer_identifier={id}&region_id=0&region_code=0",
+            "max_pdfs": 2,
+        }, True, "Prospekte", 720),
+        Source("ALDI Luxemburg", "prospekt_pdf", {
+            "retailer": "ALDI (LU)",
+            "pdf_url": "https://folder.aldi.lu/import-folder-fr/{jahr}/{jj}{kw}-fr/GetPDF.ashx",
+        }, True, "Prospekte", 720),
+        Source("Delhaize Luxemburg", "prospekt_flipbuilder", {
+            "retailer": "Delhaize (LU)",
+            "start_url": "https://www.delhaize.lu/fr/folders",
+            "link_regex": r"https://delhaizefolder\.lu/[a-z0-9]+/",
+            "max_pdfs": 2,
+        }, True, "Prospekte", 720),
+        Source("Bonial.fr – Frankreich (Carrefour, Leclerc, Auchan …)", "bonial", {
+            "themen": "Black-Friday",
+            "ort": "",
+            "retailers": "",
+            "national": True,
+            "max_results": 40,
+        }, True, "Prospekte", 360),
+    ]
 
 
 def default_sources() -> list[Source]:
@@ -91,6 +125,7 @@ def default_sources() -> list[Source]:
             "endpoint": "https://endpoints.leaflets.schwarz/v4/flyer?flyer_identifier={id}&region_id=0&region_code=0",
             "max_pdfs": 3,
         }, True, "Prospekte", 720),
+        *lu_fr_sources(),
         Source("marktguru – Angebote je Watchlist (Browser-Modus, Beta)", "marktguru", {
             "url": "https://www.marktguru.de/search/{query}",
             "retailers": "",
@@ -123,7 +158,7 @@ class Config:
             if not self.path.exists():
                 self.watchlist = default_watchlist()
                 self.sources = default_sources()
-                self.settings["migrations"] = ["1.1-aldi", "1.1-kaufda"]
+                self.settings["migrations"] = ["1.1-aldi", "1.1-kaufda", "1.4-lu-fr"]
                 self.save()
                 return
             raw = json.loads(self.path.read_text(encoding="utf-8"))
@@ -153,6 +188,11 @@ class Config:
             if not any(s.type == "kaufda" for s in self.sources):
                 self.sources += [s for s in default_sources() if s.type == "kaufda"]
             done.add("1.1-kaufda")
+            changed = True
+        if "1.4-lu-fr" not in done:
+            names = {s.name for s in self.sources}
+            self.sources += [s for s in lu_fr_sources() if s.name not in names]
+            done.add("1.4-lu-fr")
             changed = True
         if changed:
             self.settings["migrations"] = sorted(done)

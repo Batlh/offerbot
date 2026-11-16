@@ -152,8 +152,8 @@ class ProspekteTab(QWidget):
         # --- Unter-Tab 2: Preisvergleich
         cmp_w = QWidget()
         cl = QVBoxLayout(cmp_w)
-        cl.addWidget(QLabel("Günstigstes Prospekt-Angebot je Watchlist-Eintrag (alle Händler, aktuelle Treffer). "
-                            "Doppelklick öffnet die Prospektseite bzw. den Link."))
+        cl.addWidget(QLabel("Günstigstes Angebot je Watchlist-Eintrag – sortiert nach Grundpreis (€/kg, €/l), sonst Preis. "
+                            "Doppelklick öffnet Prospektseite bzw. Link, Rechtsklick → Einkaufszettel."))
         self.tree = QTreeWidget()
         self.tree.setHeaderLabels(["Watchlist / Angebot", "Preis", "Grundpreis", "Händler", "Gültig", "Quelle"])
         self.tree.setColumnWidth(0, 420)
@@ -169,6 +169,9 @@ class ProspekteTab(QWidget):
         self.hits.itemActivated.connect(self.open_hit)
         self.hits.itemClicked.connect(self.open_hit)
         self.tree.itemDoubleClicked.connect(self.open_tree_item)
+        self.tree.setSelectionMode(QTreeWidget.ExtendedSelection)
+        self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.tree.customContextMenuRequested.connect(self.tree_menu)
         self.b_fetch.clicked.connect(lambda: self.main.run_now(group="Prospekte"))
         self.b_import.clicked.connect(self.import_pdf)
         self.b_reindex.clicked.connect(lambda: self.process(reindex=True))
@@ -181,28 +184,47 @@ class ProspekteTab(QWidget):
         self.refresh_compare()
 
     def refresh_compare(self):
+        from collections import Counter
+        from ..core.units import fmt_base
         self.tree.clear()
-        rows = [r for r in self.main.db.matches() if r["kind"] == "prospekt"]
+        rows = [r for r in self.main.db.matches() if r["kind"] in ("prospekt", "preis")]
         by_watch: dict[str, list] = {}
         for r in rows:
             by_watch.setdefault(r["watch_name"], []).append(r)
         for name, items in sorted(by_watch.items()):
-            items.sort(key=lambda r: (r["price"] is None, r["price"] or 0))
+            units = Counter(r["base_unit"] for r in items if r["base_unit"])
+            main_unit = units.most_common(1)[0][0] if units else None
+            items.sort(key=lambda r: (0, r["base_price"]) if main_unit and r["base_unit"] == main_unit
+                       and r["base_price"] is not None else (1, r["price"] if r["price"] is not None else 1e9))
             best = items[0]
-            top = QTreeWidgetItem([f"{name}  ({len(items)} Angebote)", fmt_price(best["price"]), "", best["merchant"] or "", "", ""])
+            top = QTreeWidgetItem([f"{name}  ({len(items)} Angebote)", fmt_price(best["price"]),
+                                   fmt_base(best["base_price"], best["base_unit"]), best["merchant"] or "", "", ""])
             f = top.font(0)
             f.setBold(True)
             for c in range(6):
                 top.setFont(c, f)
             for r in items:
-                it = QTreeWidgetItem([r["title"] or "", fmt_price(r["price"]), r["unit_price"] or "", r["merchant"] or "",
+                it = QTreeWidgetItem([r["title"] or "", fmt_price(r["price"]),
+                                      fmt_base(r["base_price"], r["base_unit"]) or (r["unit_price"] or ""),
+                                      r["merchant"] or "",
                                       f"{r['valid_from'] or ''} {('– ' + r['valid_to']) if r['valid_to'] else ''}".strip(),
                                       r["source_name"] or ""])
                 it.setData(0, Qt.UserRole, r["url"])
+                it.setData(0, Qt.UserRole + 1, r)
                 it.setToolTip(0, r["info"] or "")
                 top.addChild(it)
             self.tree.addTopLevelItem(top)
             top.setExpanded(True)
+
+    def tree_menu(self, pos):
+        from PySide6.QtWidgets import QMenu
+        rows = [i.data(0, Qt.UserRole + 1) for i in self.tree.selectedItems() if i.data(0, Qt.UserRole + 1) is not None]
+        if not rows:
+            return
+        m = QMenu(self)
+        m.addAction("Auf den Einkaufszettel", lambda: self.main.add_to_shopping(rows))
+        m.addAction("Preisverlauf anzeigen", lambda: self.main.show_price_history(rows[0]))
+        m.exec(self.tree.viewport().mapToGlobal(pos))
 
     def open_tree_item(self, item, _col):
         url = item.data(0, Qt.UserRole) or ""

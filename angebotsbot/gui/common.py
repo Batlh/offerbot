@@ -36,6 +36,8 @@ class Task(QThread):
             res = self.fn(self.log.emit, lambda t, a, b: self.progress.emit(t, a, b), self.cancelled)
             self.finished_ok.emit(res)
         except Exception as e:  # Fehler in GUI melden statt abstürzen
+            import logging
+            logging.getLogger("angebotsbot.task").exception("Hintergrund-Aufgabe fehlgeschlagen")
             self.failed.emit(f"{e}\n\n{traceback.format_exc(limit=4)}")
 
 

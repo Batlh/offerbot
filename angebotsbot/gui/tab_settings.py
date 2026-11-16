@@ -28,8 +28,10 @@ class SettingsTab(QWidget):
         self.ort = QLineEdit(placeholderText="z. B. Trier")
         self.plz = QLineEdit(placeholderText="z. B. 54290")
         self.plz.setMaximumWidth(120)
+        self.ort_fr = QLineEdit(placeholderText="z. B. Thionville oder Metz")
         f0.addRow("Ort", self.ort)
         f0.addRow("PLZ", self.plz)
+        f0.addRow("Ort Frankreich", self.ort_fr)
         rh = QLabel("Wird für kaufDA (Angebote in deinem Ort) genutzt und als {ort}/{plz} in eigenen Quellen-URLs.")
         rh.setStyleSheet("color:#555")
         f0.addRow(rh)
@@ -111,6 +113,54 @@ class SettingsTab(QWidget):
         f5.addRow(sh)
         lay.addWidget(g5)
 
+        g6 = QGroupBox("Handy-Benachrichtigung")
+        f6 = QFormLayout(g6)
+        self.ph_mode = QComboBox()
+        self.ph_mode.addItems(["aus", "ntfy", "telegram"])
+        self.ph_server = QLineEdit(placeholderText="https://ntfy.sh")
+        trow = QHBoxLayout()
+        self.ph_topic = QLineEdit(placeholderText="geheimer Themenname, z. B. angebote-x7k2p9")
+        b_topic = QPushButton("Zufällig")
+        b_topic.clicked.connect(self.random_topic)
+        trow.addWidget(self.ph_topic)
+        trow.addWidget(b_topic)
+        self.tg_token = QLineEdit(echoMode=QLineEdit.Password, placeholderText="Bot-Token von @BotFather (Windows-Tresor)")
+        self.tg_chat = QLineEdit(placeholderText="Chat-ID (z. B. über @userinfobot)")
+        self.ph_only_new = QCheckBox("Bei neuen Treffern senden")
+        self.b_ph_test = QPushButton("Testnachricht senden")
+        self.b_ph_test.clicked.connect(self.test_phone)
+        f6.addRow("Art", self.ph_mode)
+        f6.addRow("ntfy-Server", self.ph_server)
+        f6.addRow("ntfy-Thema", trow)
+        f6.addRow("Telegram-Token", self.tg_token)
+        f6.addRow("Telegram-Chat-ID", self.tg_chat)
+        f6.addRow("", self.ph_only_new)
+        f6.addRow("", self.b_ph_test)
+        nh = QLabel("ntfy: App „ntfy“ aufs Handy, dort dasselbe Thema abonnieren – fertig, kein Konto nötig. "
+                    "Den Themennamen wie ein Passwort behandeln (jeder mit dem Namen kann mitlesen).")
+        nh.setWordWrap(True)
+        nh.setStyleSheet("color:#555")
+        f6.addRow(nh)
+        lay.addWidget(g6)
+
+        g7 = QGroupBox("Wochenbericht")
+        f7 = QFormLayout(g7)
+        self.wr_on = QCheckBox("Automatisch erstellen")
+        self.wr_day = QComboBox()
+        self.wr_day.addItems(["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"])
+        self.wr_hour = QSpinBox(minimum=0, maximum=23, suffix=" Uhr")
+        self.wr_phone = QCheckBox("Kurzfassung aufs Handy schicken")
+        f7.addRow("", self.wr_on)
+        f7.addRow("Tag", self.wr_day)
+        f7.addRow("ab", self.wr_hour)
+        f7.addRow("", self.wr_phone)
+        wh = QLabel("Je Watchlist-Eintrag die drei günstigsten aktuellen Angebote (nach Grundpreis) und welcher Laden "
+                    "sich lohnt – als HTML, Markdown und CSV im Export-Ordner unter „Wochenberichte“.")
+        wh.setWordWrap(True)
+        wh.setStyleSheet("color:#555")
+        f7.addRow(wh)
+        lay.addWidget(g7)
+
         g4 = QGroupBox("Export")
         f4 = QFormLayout(g4)
         row = QHBoxLayout()
@@ -123,6 +173,12 @@ class SettingsTab(QWidget):
         f4.addRow("Export-Ordner", row)
         f4.addRow("", self.export_on_run)
         lay.addWidget(g4)
+
+        g8 = QGroupBox("Fehlersuche")
+        f8 = QFormLayout(g8)
+        self.debug = QCheckBox("Debug-Modus: ausführliches Log (jede Anfrage, Zeiten, Details)")
+        f8.addRow("", self.debug)
+        lay.addWidget(g8)
 
         bottom = QHBoxLayout()
         info = QLabel(f"AngebotsBot {__version__} · Daten: {data_dir()}")
@@ -154,6 +210,21 @@ class SettingsTab(QWidget):
         reg = s.get("region") or {}
         self.ort.setText(reg.get("ort", ""))
         self.plz.setText(reg.get("plz", ""))
+        self.ort_fr.setText(reg.get("ort_fr", ""))
+        ph = s.get("phone") or {}
+        self.ph_mode.setCurrentText(ph.get("mode", "aus"))
+        self.ph_server.setText(ph.get("ntfy_server", "https://ntfy.sh"))
+        self.ph_topic.setText(ph.get("ntfy_topic", ""))
+        self.tg_chat.setText(ph.get("telegram_chat_id", ""))
+        from ..core import notify
+        self.tg_token.setText("●●●●●●●● (gespeichert)" if notify.has_telegram_token() else "")
+        self.ph_only_new.setChecked(bool(ph.get("only_new_matches", True)))
+        wr = s.get("weekly_report") or {}
+        self.wr_on.setChecked(bool(wr.get("enabled")))
+        self.wr_day.setCurrentIndex(int(wr.get("weekday", 0)))
+        self.wr_hour.setValue(int(wr.get("hour", 7)))
+        self.wr_phone.setChecked(bool(wr.get("send_phone", True)))
+        self.debug.setChecked(bool(s.get("debug")))
         self.interval.setValue(int(s["interval_min"]))
         self.auto_start.setChecked(bool(s["auto_start"]))
         self.notify.setChecked(bool(s["notify"]))
@@ -195,7 +266,14 @@ class SettingsTab(QWidget):
                  user_agent=self.ua.text().strip() or s["user_agent"], browser_mode=self.browser.isChecked() and bool(s.get("browser_channel")),
                  ocr=self.ocr.isChecked(), export_dir=self.export_dir.text().strip(),
                  export_on_run=self.export_on_run.isChecked(),
-                 region={"ort": self.ort.text().strip(), "plz": self.plz.text().strip()},
+                 region={"ort": self.ort.text().strip(), "plz": self.plz.text().strip(),
+                         "ort_fr": self.ort_fr.text().strip()},
+                 phone={"mode": self.ph_mode.currentText(), "ntfy_server": self.ph_server.text().strip() or "https://ntfy.sh",
+                        "ntfy_topic": self.ph_topic.text().strip(), "telegram_chat_id": self.tg_chat.text().strip(),
+                        "only_new_matches": self.ph_only_new.isChecked()},
+                 weekly_report={"enabled": self.wr_on.isChecked(), "weekday": self.wr_day.currentIndex(),
+                                "hour": self.wr_hour.value(), "send_phone": self.wr_phone.isChecked()},
+                 debug=self.debug.isChecked(),
                  browse_sites=[[a.strip(), b.strip()] for a, b in (ln.split("=", 1) for ln in
                                self.sites.toPlainText().splitlines() if "=" in ln) if a.strip() and b.strip()])
         s["ai"].update(mode=self.ai_mode.currentText(), claude_model=self.claude_model.text().strip(),
@@ -210,10 +288,30 @@ class SettingsTab(QWidget):
                               f"Alternativ Umgebungsvariable {ai.ENV_KEYS[prov]} setzen.")
             elif not t:
                 ai.set_key(prov, "")
+        from ..core import logsetup, notify
+        t = self.tg_token.text().strip()
+        if t and not t.startswith("●"):
+            notify.set_telegram_token(t)
+        elif not t:
+            notify.set_telegram_token("")
+        logsetup.set_debug(bool(s.get("debug")))
         self.main.config.save()
         self.load()
         self.main.status("Einstellungen gespeichert")
         self.main.schedule_changed()
+
+    def random_topic(self):
+        import secrets
+        self.ph_topic.setText("angebotsbot-" + secrets.token_hex(5))
+
+    def test_phone(self):
+        self.save()
+        from ..core import notify
+        t = Task(lambda *_: notify.send(self.main.config.settings, "AngebotsBot", "Test: Benachrichtigungen funktionieren ✔"), self)
+        t.finished_ok.connect(lambda _: self.main.status("Testnachricht gesendet – kommt sie auf dem Handy an?"))
+        t.failed.connect(lambda m: error_box(self, "Handy", m))
+        self._pt = t
+        t.start()
 
     def browser_toggled(self, on: bool):
         if self._loading:

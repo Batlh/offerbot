@@ -74,7 +74,19 @@ def parse_amazon(html_text: str, include_sponsored: bool = False, max_results: i
             info.insert(0, " ".join(badges.split()))
         coupon = el.select_one(".s-coupon-unclipped")
         if coupon:
-            info.append("Coupon: " + " ".join(coupon.get_text(" ", strip=True).split()))
+            ctext = " ".join(coupon.get_text(" ", strip=True).split())
+            pm = re.search(r"(\d+(?:,\d+)?)\s*%", ctext)
+            if re.search(r"Abonnement|Spar-Abo", ctext, re.I) and pm and price:
+                pct = float(pm.group(1).replace(",", "."))
+                abo = round(price * (1 - pct / 100), 2)
+                first = "1. Lieferung " if re.search(r"erste", ctext, re.I) else ""
+                info.append(f"Spar-Abo {first}−{pm.group(1)} % ≈ {abo:.2f} €".replace(f"{abo:.2f}", f"{abo:.2f}".replace(".", ",")))
+            else:
+                info.append("Coupon: " + ctext)
+        else:
+            sm = el.find(string=re.compile(r"Spar-Abo", re.I))
+            if sm:
+                info.append(" ".join(sm.find_parent().get_text(" ", strip=True).split())[:80])
         if sponsored:
             info.append("Gesponsert")
         out.append(Offer(source_id=AMAZON_SOURCE, source_name="Amazon (Sofort-Suche)", kind="preis", title=title,

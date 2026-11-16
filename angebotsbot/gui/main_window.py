@@ -20,7 +20,10 @@ from .tab_matches import MatchesTab, OffersTab
 from .tab_prospekte import ProspekteTab
 from .tab_settings import SettingsTab
 from .tab_sources import SourcesTab
+from .tab_shopping import ShoppingTab
 from .tab_watchlist import WatchTab
+import logging
+LOG = logging.getLogger("angebotsbot.gui")
 
 
 class MainWindow(QMainWindow):
@@ -30,6 +33,9 @@ class MainWindow(QMainWindow):
         self.setWindowIcon(app_icon())
         self.resize(1400, 850)
         self.config = Config()
+        from ..core import logsetup
+        logsetup.setup(bool(self.config.settings.get("debug")))
+        LOG.info("Start: %s", logsetup.system_info())
         self.db = Database()
         self.engine = Engine(self.config, self.db, log=self.log)
         self.task: Task | None = None
@@ -58,6 +64,7 @@ class MainWindow(QMainWindow):
         self.logbox = QPlainTextEdit()
         self.logbox.setReadOnly(True)
         self.logbox.setMaximumBlockCount(5000)
+        self.log_tab = self._make_log_tab()
         self.matches_tab = MatchesTab(self)
         self.offers_tab = OffersTab(self)
         self.watch_tab = WatchTab(self)
@@ -69,8 +76,10 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.watch_tab, "Watchlist")
         self.tabs.addTab(self.sources_tab, "Quellen")
         self.tabs.addTab(self.prospekte_tab, "Prospekte")
+        self.shopping_tab = ShoppingTab(self)
+        self.tabs.addTab(self.shopping_tab, "Einkaufszettel")
         self.tabs.addTab(self.settings_tab, "Einstellungen")
-        self.tabs.addTab(self.logbox, "Protokoll")
+        self.tabs.addTab(self.log_tab, "Protokoll")
         self.tabs.currentChanged.connect(self._tab_changed)
         self.matches_tab.open_prospekt.connect(self.open_prospekt)
         self.watch_tab.changed.connect(self.matches_tab.refresh_watch_filter)
@@ -96,6 +105,7 @@ class MainWindow(QMainWindow):
         self.matches_tab.refresh_watch_filter()
         self.matches_tab.refresh()
         self.prospekte_tab.refresh()
+        self.shopping_tab.refresh()
         self.update_next_label()
         self.log(f"{APP_NAME} gestartet · {len(self.config.watchlist)} Watchlist-Einträge, "
                  f"{sum(s.enabled for s in self.config.sources)} aktive Quellen")
@@ -106,6 +116,7 @@ class MainWindow(QMainWindow):
     def log(self, msg: str):
         line = f"{datetime.now():%H:%M:%S}  {msg}"
         # kann aus Hintergrund-Threads kommen → in GUI-Thread schieben
+        LOG.info(msg)
         QTimer.singleShot(0, self, lambda: self.logbox.appendPlainText(line))
 
     def status(self, msg: str):
@@ -123,6 +134,8 @@ class MainWindow(QMainWindow):
             self.sources_tab.reload()
         elif w is self.prospekte_tab:
             self.prospekte_tab.refresh()
+        elif w is self.shopping_tab:
+            self.shopping_tab.refresh()
 
     def show_window(self):
         self.showNormal()
@@ -209,6 +222,13 @@ class MainWindow(QMainWindow):
             lines = [f"{w.name}: {o.title[:60]} – {fmt_price(o.price)}" for o, w in res.new_matches[:4]]
             more = f"\n… und {n - 4} weitere" if n > 4 else ""
             self.tray.showMessage(f"{n} neue Treffer", "\n".join(lines) + more, QSystemTrayIcon.Information, 10000)
+        ph = self.config.settings.get("phone") or {}
+        if n and ph.get("mode", "aus") != "aus" and ph.get("only_new_matches", True):
+            lines = [f"{w.name}: {o.title[:70]} – {fmt_price(o.price)}" + (f" ({o.merchant})" if o.merchant else "")
+                     for o, w in res.new_matches[:8]]
+            more = f"\n… und {n - 8} weitere" if n > 8 else ""
+            url = res.new_matches[0][0].url if n == 1 else ""
+            self._send_phone(f"{n} neue Treffer", "\n".join(lines) + more, url)
         exp = self.config.settings.get("export_dir")
         if n and exp and self.config.settings.get("export_on_run"):
             try:
@@ -236,6 +256,13 @@ class MainWindow(QMainWindow):
 
     def tick(self):
         self.update_next_label()
+        wr = self.config.settings.get("weekly_report") or {}
+        if wr.get("enabled"):
+            now = datetime.now()
+            y, kw, _ = now.isocalendar()
+            if now.weekday() == int(wr.get("weekday", 0)) and now.hour >= int(wr.get("hour", 7)) \
+                    and self.db.meta_get("weekly_last") != f"{y}-{kw}":
+                self.weekly_report()
         if self.task and self.task.isRunning():
             return
         due = self._due_sources()
@@ -264,22 +291,142 @@ class MainWindow(QMainWindow):
         self.next_label.setText(f"Nächste automatische Prüfung: {max(nxt, datetime.now()):%H:%M}")
 
     # ---------------------------------------------------------------- Preisverlauf
-    def show_price_history(self, url: str):
-        rows = self.db.price_series(url) or self.db.price_series("gh:" + url.split("?")[0])
+    def show_price_history(self, row):
+        """Preisverlauf als Diagramm + Tabelle. row = Treffer-/Angebotszeile (oder URL)."""
+        from datetime import datetime as _dt
+        if isinstance(row, str):
+            series = [(r["ts"], r["price"], r["merchant"] or "") for r in
+                      (self.db.price_series(row) or self.db.price_series("gh:" + row.split("?")[0]))]
+            title = row
+        else:
+            series = self.db.series_for(row)
+            title = row["title"] or row["url"] or ""
         dlg = QDialog(self)
         dlg.setWindowTitle("Preisverlauf")
-        dlg.resize(560, 420)
+        dlg.resize(820, 600)
         lay = QVBoxLayout(dlg)
-        if rows:
-            prices = [r["price"] for r in rows]
-            lay.addWidget(QLabel(f"{url}\nTiefster: {fmt_price(min(prices))} · Höchster: {fmt_price(max(prices))} · "
-                                 f"{len(rows)} Messungen"))
-        view, model, _ = make_table([Col("Zeitpunkt", lambda r: r["ts"].replace("T", " "), width=170),
-                                     Col("Preis", lambda r: fmt_price(r["price"]), sort=lambda r: r["price"], align_right=True, width=100),
-                                     Col("Händler", lambda r: r["merchant"])], dlg)
-        model.set_rows(rows)
-        lay.addWidget(view)
+        if not series:
+            lay.addWidget(QLabel("Für dieses Angebot gibt es noch keinen Preisverlauf.\n"
+                                 "Er entsteht, wenn der Bot das Produkt mehrmals sieht (Produkt-Links, Amazon prüfen, "
+                                 "wiederkehrende Prospekt-Angebote)."))
+        else:
+            prices = [p for _, p, _ in series]
+            head = QLabel(f"<b>{title[:120]}</b><br>Tiefster: {fmt_price(min(prices))} · Höchster: "
+                          f"{fmt_price(max(prices))} · {len(series)} Messungen")
+            head.setWordWrap(True)
+            lay.addWidget(head)
+            try:
+                from PySide6.QtCharts import QChart, QChartView, QDateTimeAxis, QLineSeries, QScatterSeries, QValueAxis
+                from PySide6.QtCore import QDateTime
+                from PySide6.QtGui import QPainter
+                line, dots = QLineSeries(), QScatterSeries()
+                dots.setMarkerSize(7)
+                for ts, p, _m in series:
+                    ms = QDateTime(_dt.fromisoformat(ts)).toMSecsSinceEpoch()
+                    line.append(ms, p)
+                    dots.append(ms, p)
+                chart = QChart()
+                chart.addSeries(line)
+                chart.addSeries(dots)
+                chart.legend().hide()
+                ax = QDateTimeAxis()
+                ax.setFormat("dd.MM.")
+                ay = QValueAxis()
+                lo, hi = min(prices), max(prices)
+                pad = max(0.5, (hi - lo) * 0.15)
+                ay.setRange(max(0, lo - pad), hi + pad)
+                ay.setLabelFormat("%.2f")
+                ay.setTitleText("Preis in Euro")
+                chart.addAxis(ax, Qt.AlignBottom)
+                chart.addAxis(ay, Qt.AlignLeft)
+                for sr in (line, dots):
+                    sr.attachAxis(ax)
+                    sr.attachAxis(ay)
+                cv = QChartView(chart)
+                cv.setRenderHint(QPainter.Antialiasing)
+                cv.setMinimumHeight(280)
+                lay.addWidget(cv, 3)
+            except Exception as e:  # Diagramm ist Zusatz – Tabelle reicht notfalls
+                LOG.warning("Diagramm nicht möglich: %s", e)
+            view, model, _ = make_table([Col("Zeitpunkt", lambda r: r[0].replace("T", " ")[:16], width=150),
+                                         Col("Preis", lambda r: fmt_price(r[1]), sort=lambda r: r[1], align_right=True, width=100),
+                                         Col("Händler", lambda r: r[2])], dlg)
+            model.set_rows(list(reversed(series)))
+            lay.addWidget(view, 2)
         dlg.exec()
+
+    # ---------------------------------------------------------------- Einkaufszettel, Handy, Wochenbericht
+    def add_to_shopping(self, rows):
+        n = 0
+        for r in rows:
+            if "uid" not in r.keys():
+                continue
+            if "base_price" not in r.keys():
+                r = self.db.q("SELECT * FROM offers WHERE uid=?", (r["uid"],))[0]
+            n += self.db.shopping_add(r)
+        self.shopping_tab.refresh()
+        self.status(f"{n} Artikel auf den Einkaufszettel gesetzt" if n else "Schon auf dem Einkaufszettel")
+
+    def _send_phone(self, title: str, text: str, url: str = ""):
+        import threading
+        from ..core import notify
+
+        def work():
+            try:
+                notify.send(self.config.settings, title, text, url)
+            except Exception as e:
+                self.log(f"Handy-Benachrichtigung fehlgeschlagen: {e}")
+        threading.Thread(target=work, daemon=True, name="Handy").start()
+
+    def report_dir(self) -> Path:
+        from ..core.paths import data_dir
+        exp = self.config.settings.get("export_dir")
+        return (Path(exp) if exp else data_dir()) / "Wochenberichte"
+
+    def weekly_report(self, manual: bool = False):
+        from ..core.report import weekly_report
+        from .common import open_local
+        try:
+            paths, summary = weekly_report(self.db, self.config.watchlist, self.report_dir())
+        except Exception as e:
+            LOG.exception("Wochenbericht fehlgeschlagen")
+            if manual:
+                error_box(self, "Wochenbericht", str(e))
+            return
+        y, kw, _ = datetime.now().isocalendar()
+        self.db.meta_set("weekly_last", f"{y}-{kw}")
+        self.log(f"Wochenbericht erstellt: {paths[0]}")
+        wr = self.config.settings.get("weekly_report") or {}
+        if wr.get("send_phone") and (self.config.settings.get("phone") or {}).get("mode", "aus") != "aus":
+            self._send_phone(f"Wochenbericht KW {kw}", summary)
+        if manual:
+            open_local(paths[0])
+
+    def _make_log_tab(self):
+        from PySide6.QtWidgets import QHBoxLayout, QPushButton, QWidget
+        from ..core import logsetup
+        from .common import open_local
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        bar = QHBoxLayout()
+        b1, b2, b3 = QPushButton("Log-Ordner öffnen"), QPushButton("Debug-Paket erstellen"), QPushButton("Anzeige leeren")
+        b1.clicked.connect(lambda: open_local(logsetup.log_dir()))
+
+        def pack():
+            p = logsetup.debug_package(self.db)
+            self.status(f"Debug-Paket: {p.name} – kannst du mir schicken (enthält keine Passwörter/Schlüssel)")
+            open_local(p.parent)
+        b2.clicked.connect(pack)
+        b3.clicked.connect(self.logbox.clear)
+        for b in (b1, b2, b3):
+            bar.addWidget(b)
+        bar.addStretch()
+        hint = QLabel("Ausführliches Log: Einstellungen → Fehlersuche → Debug-Modus. Logdatei: data\\logs\\angebotsbot.log")
+        hint.setStyleSheet("color:#666")
+        bar.addWidget(hint)
+        lay.addLayout(bar)
+        lay.addWidget(self.logbox)
+        return w
 
     # ---------------------------------------------------------------- Schließen
     def closeEvent(self, e: QCloseEvent):

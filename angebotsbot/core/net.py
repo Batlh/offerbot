@@ -1,12 +1,16 @@
 """HTTP-Abrufe mit höflicher Pause pro Seite und optionalem Browser-Modus (Playwright)."""
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
+
+
+LOG = logging.getLogger("angebotsbot.net")
 
 
 class FetchError(Exception):
@@ -42,10 +46,16 @@ class Fetcher:
 
     def get(self, url: str, as_json: bool = False, binary: bool = False):
         self._wait(url)
+        t0 = time.time()
         try:
             r = self.session.get(url, timeout=float(self.settings.get("timeout_s", 20)))
         except requests.RequestException as e:
+            LOG.warning("GET %s → Verbindungsfehler: %s", url, e)
             raise FetchError(f"Verbindung fehlgeschlagen: {e}") from e
+        LOG.debug("GET %s → %s, %d Bytes, %.0f ms%s", url, r.status_code, len(r.content), (time.time() - t0) * 1000,
+                  f", umgeleitet nach {r.url}" if r.url != url else "")
+        if r.status_code >= 400:
+            LOG.info("GET %s → HTTP %s (Antwortanfang: %r)", url, r.status_code, r.text[:200])
         if r.status_code in (403, 429, 503):
             raise FetchError(f"HTTP {r.status_code} – die Seite blockt automatische Abrufe. "
                              f"Quelle ausschalten bzw. Prospekt als PDF importieren")
@@ -89,6 +99,8 @@ class Fetcher:
         if channel == "chromium":
             channel = None
         self._wait(url)
+        LOG.debug("Browser (%s) lädt %s", channel or "chromium", url)
+        t0 = time.time()
         with sync_playwright() as p:
             browser = p.chromium.launch(channel=channel, headless=True) if channel else p.chromium.launch(headless=True)
             try:
@@ -100,6 +112,8 @@ class Fetcher:
                     except Exception:
                         pass
                 page.wait_for_timeout(wait_ms)
-                return page.content()
+                html = page.content()
+                LOG.debug("Browser fertig: %s, %d Zeichen, %.0f ms", page.url, len(html), (time.time() - t0) * 1000)
+                return html
             finally:
                 browser.close()

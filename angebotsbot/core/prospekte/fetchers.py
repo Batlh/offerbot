@@ -140,6 +140,74 @@ def run_schwarz(ctx: RunContext, source: Source) -> list[Offer]:
     return offers
 
 
+# ---------------------------------------------------------------- FlipBuilder-Viewer (z. B. Delhaize Luxemburg)
+JS_STR_RE = re.compile(r'"((?:[^"\\]|\\.)*)"')
+
+
+def _js_unescape(s: str) -> str:
+    def rep(m):
+        c = m.group(1)
+        if c.startswith("u"):
+            try:
+                return chr(int(c[1:5], 16))
+            except ValueError:
+                return c
+        return {"n": "\n", "t": "\t", "r": "", "b": "", "f": ""}.get(c, c)
+    return re.sub(r"\\(u[0-9a-fA-F]{4}|.)", rep, s)
+
+
+def parse_flipbuilder_texts(js: str) -> list[str]:
+    m = re.search(r"textForPages\s*=\s*\[(.*?)\];", js, re.S)
+    if not m:
+        return []
+    return [" ".join(_js_unescape(x).split()) for x in JS_STR_RE.findall(m.group(1))]
+
+
+def run_flipbuilder(ctx: RunContext, source: Source) -> list[Offer]:
+    import pymupdf
+    st = source.settings
+    retailer = st.get("retailer") or source.name
+    start = ctx.fill(st.get("start_url", "").strip())
+    link_re = st.get("link_regex") or r"https://[a-z0-9.-]+/[a-z0-9_-]+/"
+    max_pdfs = int(st.get("max_pdfs") or 2)
+    page = ctx.fetcher.get(start)
+    links: list[str] = []
+    for m in re.finditer(link_re, page):
+        u = m.group(0)
+        if u not in links:
+            links.append(u)
+    if not links:
+        raise ValueError("Keine Prospekt-Links gefunden – Muster prüfen")
+    for base in links[:max_pdfs]:
+        if ctx.cancel():
+            break
+        base = base if base.endswith("/") else base + "/"
+        known = ctx.db.prospekt_known(base)
+        texts = parse_flipbuilder_texts(ctx.fetcher.get(base + "mobile/javascript/search_config.js"))
+        title = base.rstrip("/").rsplit("/", 1)[-1]
+        if ctx.extra.get("dry_run"):
+            ctx.log(f"Prospekt gefunden{' (schon geladen)' if known else ''}: {retailer} – {title}, {len(texts)} Seiten\n    {base}")
+            continue
+        if known or not texts:
+            continue
+        doc = pymupdf.open()
+        for i in range(1, len(texts) + 1):
+            img = ctx.fetcher.get(f"{base}files/mobile/{i}.jpg", binary=True)
+            with pymupdf.open(stream=img, filetype="jpg") as im:
+                r = im[0].rect
+            pg = doc.new_page(width=r.width, height=r.height)
+            pg.insert_image(pg.rect, stream=img)
+        target = prospekt_dir() / safe_name(retailer) / (safe_name(f"{date.today():%Y-%m-%d}_{retailer}_{title}") + ".pdf")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        doc.save(target)
+        pid = ctx.db.add_prospekt(retailer, title, base, str(target))
+        if pid:
+            ctx.db.set_pages(pid, [(i + 1, t, False) for i, t in enumerate(texts)])
+            ctx.extra.setdefault("new_prospekte", []).append(pid)
+            ctx.log(f"Prospekt geladen: {retailer} – {title} ({len(texts)} Seiten, Text direkt aus dem Viewer)")
+    return []
+
+
 # ---------------------------------------------------------------- Direkter PDF-Link
 def run_direct(ctx: RunContext, source: Source) -> list[Offer]:
     st = source.settings
@@ -223,6 +291,15 @@ register(SourceType(
             FieldSpec("endpoint", "Daten-Adresse ({id} = Kennung)"),
             FieldSpec("max_pdfs", "Max. Prospekte je Lauf", kind="int", default=3)],
     run=run_schwarz,
+))
+register(SourceType(
+    key="prospekt_flipbuilder", label="Prospekt aus FlipBuilder-Viewer (z. B. Delhaize LU)", group="Prospekte",
+    description="Für Händler, deren Prospekt in einem FlipBuilder-Viewer steckt: Seitenbilder werden zu einer PDF "
+                "zusammengesetzt, der Text kommt direkt aus dem Viewer (keine Texterkennung nötig).",
+    fields=[FieldSpec("retailer", "Händler"), FieldSpec("start_url", "Übersichtsseite"),
+            FieldSpec("link_regex", "Muster: Link zum Viewer (Regex)"),
+            FieldSpec("max_pdfs", "Max. Prospekte je Lauf", kind="int", default=2)],
+    run=run_flipbuilder,
 ))
 register(SourceType(
     key="prospekt_pdf", label="Direkter PDF-Link", group="Prospekte",

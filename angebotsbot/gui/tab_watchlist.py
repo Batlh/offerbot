@@ -45,6 +45,7 @@ class WatchTab(QWidget):
         self.name = QLineEdit()
         self.keywords = QLineEdit(placeholderText='z. B. ssd 2tb|"2 tb" -gebraucht')
         self.query = QLineEdit(placeholderText="Suchtext für kaufDA/Geizhals/Shops (leer = Name) – für kaufDA am besten ein Wort, z. B. Kaffeebohnen")
+        self.query_fr = QLineEdit(placeholderText="Suchtext Frankreich (Bonial), z. B. Beurre, Litiere, Cafe – leer = Suchtext")
         self.category = QComboBox(editable=True)
         self.category.addItems(["Allgemein", "Technik", "Gaming", "Haushalt", "Lebensmittel", "Drogerie", "Kleidung"])
         self.max_price = QDoubleSpinBox(maximum=100000, decimals=2, suffix=" €", specialValueText="egal")
@@ -65,6 +66,7 @@ class WatchTab(QWidget):
         hl.setStyleSheet("color:#555")
         f.addRow("", hl)
         f.addRow("Suchtext", self.query)
+        f.addRow("Suchtext FR", self.query_fr)
         f.addRow("Kategorie", self.category)
         f.addRow("Höchstpreis", self.max_price)
         f.addRow("Mindest-Rabatt", self.min_discount)
@@ -148,7 +150,7 @@ class WatchTab(QWidget):
     def show_item(self, item, *_):
         w = self.main.config.watch(item.data(Qt.UserRole)) if item else None
         self.current = w
-        for wd in (self.name, self.keywords, self.query, self.category, self.max_price, self.min_discount,
+        for wd in (self.name, self.keywords, self.query, self.query_fr, self.category, self.max_price, self.min_discount,
                    self.in_deals, self.in_prospekte, self.search_online, self.enabled, self.urls, self.notes, self.b_save,
                    self.b_browse, self.b_amazon):
             wd.setEnabled(w is not None)
@@ -157,6 +159,7 @@ class WatchTab(QWidget):
         self.name.setText(w.name)
         self.keywords.setText(w.keywords)
         self.query.setText(w.query)
+        self.query_fr.setText(w.query_fr)
         self.category.setCurrentText(w.category)
         self.max_price.setValue(w.max_price or 0)
         self.min_discount.setValue(w.min_discount or 0)
@@ -178,6 +181,7 @@ class WatchTab(QWidget):
         w.name = self.name.text().strip()
         w.keywords = self.keywords.text().strip()
         w.query = self.query.text().strip()
+        w.query_fr = self.query_fr.text().strip()
         w.category = self.category.currentText().strip() or "Allgemein"
         w.max_price = self.max_price.value() or None
         w.min_discount = self.min_discount.value() or None
