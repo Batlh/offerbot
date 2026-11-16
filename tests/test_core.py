@@ -1,4 +1,5 @@
 import json
+import json
 import os
 import sys
 import tempfile
@@ -555,3 +556,55 @@ def test_discord_webhook(monkeypatch):
     assert len(sent) == 2 and sent[0][0].endswith("/abc") and sent[0][1]["content"].startswith("**2 neue Treffer**")
     st["phone"]["discord_on"] = False
     assert not notify.has_any(st)
+
+
+def test_phone_api(env):
+    import urllib.request
+    import urllib.error
+    cfg, db, eng = env
+    from angebotsbot.core.api import ApiServer, connect_uri
+    from angebotsbot.core.models import Offer, WatchItem
+    w = WatchItem("Butter", keywords="butter", in_prospekte=True)
+    cfg.watchlist = [w]
+    o = Offer("s", "S", "Kerrygold Butter 250 g", price=1.69, merchant="Lidl", kind="prospekt", valid_to="21.11.")
+    db.upsert_offers([o])
+    eng.match([o])
+    started = []
+    srv = ApiServer(cfg, db, eng, 0, "geheim", {"pruefen": lambda: started.append(1)}, host="127.0.0.1")
+    srv.start()
+    port = srv.httpd.server_address[1]
+
+    def call(path, method="GET", body=None, key="geheim"):
+        req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", method=method,
+                                     data=json.dumps(body).encode() if body is not None else None,
+                                     headers={"X-Key": key, "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            return json.loads(r.read())
+
+    try:
+        with pytest.raises(urllib.error.HTTPError) as e:
+            call("/api/status", key="falsch")
+        assert e.value.code == 401
+        st = call("/api/status")
+        assert st["unread"] == 1 and st["api"] == 1
+        items = call("/api/treffer")["items"]
+        assert items[0]["title"].startswith("Kerrygold") and items[0]["base"] == "6,76 €/kg"
+        uid = items[0]["uid"]
+        assert call("/api/zettel", "POST", {"uid": uid})["added"]
+        call("/api/zettel", "POST", {"title": "Katzenstreu"})
+        z = call("/api/zettel")["items"]
+        assert {x["title"] for x in z} == {"Kerrygold Butter 250 g", "Katzenstreu"}
+        call(f"/api/zettel/{z[0]['id']}/erledigt", "POST", {"done": True})
+        assert any(x["done"] for x in call("/api/zettel")["items"])
+        call("/api/treffer/gelesen", "POST", {"uids": [uid]})
+        assert call("/api/status")["unread"] == 0
+        saved = call("/api/watchlist", "POST", {"name": "Kaffee", "keywords": "kaffee", "max_price": 9.99})
+        assert saved["ok"] and any(x.name == "Kaffee" for x in cfg.watchlist)
+        call(f"/api/watchlist/{saved['item']['id']}", "DELETE")
+        assert [x.name for x in cfg.watchlist] == ["Butter"]
+        call("/api/pruefen", "POST", {})
+        assert started == [1]
+        assert call("/api/suche?q=kerry")["items"]
+    finally:
+        srv.stop()
+    assert connect_uri(8765, "k").startswith("angebotsbot://verbinden?url=http://") and connect_uri(8765, "k").endswith("&key=k")

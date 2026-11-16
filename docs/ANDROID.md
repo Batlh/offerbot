@@ -1,6 +1,6 @@
 # Android-Version – Plan und Checkpoint
 
-Stand: 16.11.2026, Version 1.7.1 · Status: **A geplant**, B als Option vorgemerkt
+Stand: 16.11.2026, Version 1.9.0 · Status: **A umgesetzt (erste Version)**, B als Option vorgemerkt
 
 ## Ausgangslage
 
@@ -62,9 +62,15 @@ optional eigene Quellen direkt auf dem Handy (mydealz, kaufDA, Bonial, Lidl – 
 
 ### Offen (in dieser Reihenfolge)
 1. [x] Entscheidung: A, B als Option vorgemerkt
-2. [ ] `core/api.py` + Einstellungen (Schalter, Port, Schlüssel, QR-Code) + Tests
-3. [ ] Flutter-Projekt `android/` anlegen: Einrichtung per QR, Treffer-Liste
-4. [ ] Einkaufszettel + Watchlist in der App
-5. [ ] Prospekt-Viewer in der App
-6. [ ] APK-Build in GitHub Actions, an die Release hängen
-7. [ ] Test auf dem Handy im WLAN
+2. [x] `core/api.py` + Einstellungen (Schalter, Port, Schlüssel, QR-Code) + Tests
+3. [x] Flutter-Projekt `app/` (Android-Ordner wird im Build erzeugt): Einrichtung per QR, Treffer-Liste
+4. [x] Einkaufszettel (offline-fähig) + Watchlist + „Amazon prüfen“ in der App
+5. [x] Prospekt-Viewer in der App (Seitenbilder vom PC, Zoom)
+6. [x] APK-Build in GitHub Actions (analyze, Tests, feste Signatur), an die Release gehängt
+7. [ ] Test auf dem Handy im WLAN (Nutzer)
+8. [ ] Später: Offline-Treffer, Benachrichtigungen in der App, App-Symbol
+
+### Hinweise
+- Signatur: fester Schlüssel `app/ci/offerbot.keystore` (liegt offen im Repo, private App ohne Store), damit
+  Updates über die installierte App funktionieren.
+- Datenquelle austauschbar: `app/lib/data/source.dart` (`DataSource`) – Grundlage für Option B.

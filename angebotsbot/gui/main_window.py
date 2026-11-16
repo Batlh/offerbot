@@ -111,6 +111,8 @@ class MainWindow(QMainWindow):
                  f"{sum(s.enabled for s in self.config.sources)} aktive Quellen")
         self.tg_bot = None
         self.restart_telegram_bot()
+        self.api_server = None
+        self.restart_api()
         if self.config.settings.get("auto_start"):
             QTimer.singleShot(1500, lambda: self.run_now())
 
@@ -361,6 +363,32 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     # ---------------------------------------------------------------- Prüfungen (Captcha) selbst lösen
+    def restart_api(self):
+        from ..core.api import ApiServer, new_key
+        if self.api_server:
+            self.api_server.stop()
+            self.api_server = None
+        pa = self.config.settings.setdefault("phone_api", {"enabled": False, "port": 8765, "key": ""})
+        if not pa.get("key"):
+            pa["key"] = new_key()
+            self.config.save()
+        if not pa.get("enabled"):
+            return
+
+        def changed():
+            QTimer.singleShot(0, self, lambda: (self.matches_tab.refresh(), self.shopping_tab.refresh(),
+                                                self.watch_tab.reload()))
+        try:
+            self.api_server = ApiServer(self.config, self.db, self.engine, int(pa.get("port") or 8765), pa["key"],
+                                        {"pruefen": lambda: QTimer.singleShot(0, self, lambda: self.run_now()),
+                                         "changed": changed})
+            self.api_server.start()
+            self.log(f"Handy-Schnittstelle läuft (Port {pa.get('port')})")
+        except OSError as e:
+            self.api_server = None
+            self.log(f"Handy-Schnittstelle konnte nicht starten: {e}")
+            error_box(self, "Handy-App", f"Die Schnittstelle konnte nicht starten (Port belegt?): {e}")
+
     def restart_telegram_bot(self):
         from ..core import notify
         from ..core.telegram_bot import TelegramBot
@@ -499,6 +527,8 @@ class MainWindow(QMainWindow):
         self._quitting = True
         if getattr(self, "tg_bot", None):
             self.tg_bot.stop()
+        if getattr(self, "api_server", None):
+            self.api_server.stop()
         if self.task and self.task.isRunning():
             self.task.cancel()
             self.task.wait(5000)

@@ -13,7 +13,48 @@ permissions:
   contents: write
 
 jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - run: bash ci/prepare.sh
+      - run: flutter analyze --no-fatal-infos --no-fatal-warnings
+      - run: flutter test --reporter expanded
+      - name: Gradle-Spiegel (wie casino-app)
+        run: |
+          mkdir -p ~/.gradle/init.d
+          cp ci/maven-mirror.gradle ci/compile-sdk.gradle ~/.gradle/init.d/
+      - name: APK bauen
+        run: |
+          VERSION=$(python3 -c "import re;print(re.search(r'__version__ = \"(.+?)\"', open('../angebotsbot/__init__.py', encoding='utf-8').read()).group(1))")
+          for try in 1 2 3; do
+            flutter build apk --release --build-name="$VERSION" --build-number=${{ github.run_number }} && break
+            [ "$try" = 3 ] && exit 1
+            echo "Neuer Versuch in 30 Sekunden"; sleep 30
+          done
+          mv build/app/outputs/flutter-apk/app-release.apk ../AngebotsBot.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: AngebotsBot.apk
+          if-no-files-found: error
+          retention-days: 30
+
   build:
+    needs: android
+    if: ${{ !cancelled() }}   # Windows-Version kommt auch, wenn die APK einmal scheitert
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,6 +89,13 @@ jobs:
           path: AngebotsBot-windows.zip
           retention-days: 30
 
+      - name: APK aus dem Android-Build holen
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: android-apk
+          path: .
+
       - name: Release-Text vorbereiten
         if: github.event_name != 'pull_request'
         id: rel
@@ -79,6 +127,7 @@ jobs:
             echo
             echo "---"
             echo "**Download:** \`AngebotsBot-windows.zip\` unten bei *Assets* – entpacken, \`AngebotsBot.exe\` starten."
+            echo "**Handy:** \`AngebotsBot.apk\` aufs Android-Handy laden und installieren, dann am PC unter Einstellungen → Handy-App den QR-Code scannen."
             echo "Update: über die alte Version entpacken, den Ordner \`data\` behalten."
             echo "Windows-SmartScreen warnt beim ersten Start (nicht signiert): „Weitere Informationen“ → „Trotzdem ausführen“."
           } > release_notes.md
@@ -93,6 +142,8 @@ jobs:
           tag_name: ${{ steps.rel.outputs.tag }}
           name: ${{ steps.rel.outputs.name }}
           body_path: release_notes.md
-          files: AngebotsBot-windows.zip
+          files: |
+            AngebotsBot-windows.zip
+            AngebotsBot.apk
           target_commitish: ${{ github.sha }}
           make_latest: true

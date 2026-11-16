@@ -106,6 +106,15 @@ mit Fehler 403), bleiben gesperrt.
 Bitte die Intervalle nicht zu klein machen (Standard 30 Minuten, Prospekte 12 Stunden) – das schont die Seiten
 und verhindert Sperren.
 
+## Handy-App (Android)
+
+1. Am PC: *Einstellungen → Handy-App* → „Schnittstelle … einschalten“, **Speichern**, dann **„QR-Code anzeigen“**.
+   Windows fragt einmal, ob der AngebotsBot im Netzwerk erreichbar sein darf → „Private Netzwerke“ erlauben.
+2. Am Handy: `AngebotsBot.apk` aus der neuesten [Release](https://github.com/Batlh/offerbot/releases) installieren
+   (einmalig „Installation aus unbekannten Quellen“ erlauben), App öffnen → **QR-Code scannen**.
+3. Fertig: Treffer, Einkaufszettel (auch offline), Watchlist, „Amazon prüfen“, Prospekte und „Jetzt prüfen“.
+   Handy und PC müssen dafür im selben WLAN sein. Unterwegs kommen neue Treffer weiter per ntfy/Telegram/Discord.
+
 ## Browser-Modus
 
 Manche Seiten (z. B. marktguru) zeigen ihre Angebote erst per JavaScript. Dafür gibt es den Browser-Modus:

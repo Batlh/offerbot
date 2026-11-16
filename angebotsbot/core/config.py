@@ -28,6 +28,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "close_to_tray": True,  # Fenster schließen = im Infobereich weiterlaufen
     "region": {"ort": "Trier", "plz": "54290", "ort_fr": "Thionville"},
     "debug": False,  # ausführliches Debug-Log (data/logs)
+    "phone_api": {"enabled": False, "port": 8765, "key": ""},  # Schnittstelle für die Handy-App
     "phone": {"mode": "aus", "ntfy_server": "https://ntfy.sh", "ntfy_topic": "", "telegram_chat_id": "",
               "only_new_matches": True, "telegram_bot": False,
               "discord_on": False, "discord_webhook": ""},

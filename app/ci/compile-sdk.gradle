@@ -1,0 +1,14 @@
+// Manche Plugins (z. B. file_picker) bringen ein zu altes compileSdk mit, während ihre Abhängigkeiten
+// mindestens 36 verlangen. Alle Android-Bibliotheken werden darum gegen dieselbe, neuere Version gebaut.
+allprojects {
+    afterEvaluate { p ->
+        if (p.plugins.hasPlugin('com.android.library')) {
+            def android = p.extensions.getByName('android')
+            def current = android.compileSdk ?: 0
+            if (current < 36) {
+                android.compileSdk = 36
+                println "compileSdk für ${p.name}: ${current} -> 36"
+            }
+        }
+    }
+}

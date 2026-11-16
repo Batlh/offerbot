@@ -1,0 +1,21 @@
+// Leitet Maven Central auf den Spiegel von Google um. Maven Central verweist
+// manche Dateien auf GitHub-Downloads, die auf den Build-Rechnern zeitweise
+// mit 504 scheitern. Der Spiegel liefert die Dateien selbst aus.
+def mirror = 'https://maven-central.storage-download.googleapis.com/maven2/'
+def redirect = { repos ->
+    repos.withType(MavenArtifactRepository).configureEach { repo ->
+        def u = repo.url.toString()
+        if (u.contains('repo.maven.apache.org') || u.contains('repo1.maven.org')) {
+            repo.url = mirror
+        }
+    }
+}
+beforeSettings { settings ->
+    redirect(settings.pluginManagement.repositories)
+    redirect(settings.buildscript.repositories)
+    redirect(settings.dependencyResolutionManagement.repositories)
+}
+allprojects {
+    redirect(buildscript.repositories)
+    redirect(repositories)
+}

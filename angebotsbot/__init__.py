@@ -5,5 +5,5 @@ Aufbau:
   angebotsbot.gui   – Windows-Oberfläche (PySide6)
 """
 
-__version__ = "1.8.0"
+__version__ = "1.9.0"
 APP_NAME = "AngebotsBot"

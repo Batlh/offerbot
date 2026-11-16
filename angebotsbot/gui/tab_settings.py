@@ -162,6 +162,30 @@ class SettingsTab(QWidget):
         f6.addRow(nh)
         lay.addWidget(g6)
 
+        g9 = QGroupBox("Handy-App (Android)")
+        f9 = QFormLayout(g9)
+        self.api_on = QCheckBox("Schnittstelle für die Handy-App einschalten (nur im eigenen WLAN)")
+        self.api_port = QSpinBox(minimum=1024, maximum=65535)
+        krow = QHBoxLayout()
+        self.api_key = QLineEdit(readOnly=True)
+        b_key = QPushButton("Neuer Schlüssel")
+        b_key.clicked.connect(self.new_api_key)
+        b_qr = QPushButton("QR-Code anzeigen")
+        b_qr.clicked.connect(self.show_qr)
+        krow.addWidget(self.api_key, 1)
+        krow.addWidget(b_key)
+        krow.addWidget(b_qr)
+        f9.addRow("", self.api_on)
+        f9.addRow("Port", self.api_port)
+        f9.addRow("Schlüssel", krow)
+        ah = QLabel("App „AngebotsBot“ (APK aus den GitHub-Releases) installieren, „Mit PC verbinden“ antippen und den "
+                    "QR-Code scannen. Windows fragt beim ersten Einschalten, ob der AngebotsBot im Netzwerk erreichbar "
+                    "sein darf – „Private Netzwerke“ erlauben. Neuer Schlüssel = alle Handys müssen neu verbinden.")
+        ah.setWordWrap(True)
+        ah.setStyleSheet("color:#555")
+        f9.addRow(ah)
+        lay.addWidget(g9)
+
         g7 = QGroupBox("Wochenbericht")
         f7 = QFormLayout(g7)
         self.wr_on = QCheckBox("Automatisch erstellen")
@@ -255,6 +279,10 @@ class SettingsTab(QWidget):
         self.wr_hour.setValue(int(wr.get("hour", 7)))
         self.wr_phone.setChecked(bool(wr.get("send_phone", True)))
         self.debug.setChecked(bool(s.get("debug")))
+        pa = s.get("phone_api") or {}
+        self.api_on.setChecked(bool(pa.get("enabled")))
+        self.api_port.setValue(int(pa.get("port") or 8765))
+        self.api_key.setText(pa.get("key", ""))
         self.interval.setValue(int(s["interval_min"]))
         self.auto_start.setChecked(bool(s["auto_start"]))
         self.notify.setChecked(bool(s["notify"]))
@@ -306,6 +334,8 @@ class SettingsTab(QWidget):
                  weekly_report={"enabled": self.wr_on.isChecked(), "weekday": self.wr_day.currentIndex(),
                                 "hour": self.wr_hour.value(), "send_phone": self.wr_phone.isChecked()},
                  debug=self.debug.isChecked(),
+                 phone_api={"enabled": self.api_on.isChecked(), "port": self.api_port.value(),
+                            "key": self.api_key.text().strip()},
                  browse_sites=[[a.strip(), b.strip()] for a, b in (ln.split("=", 1) for ln in
                                self.sites.toPlainText().splitlines() if "=" in ln) if a.strip() and b.strip()])
         s["ai"].update(mode=self.ai_mode.currentText(), claude_model=self.claude_model.text().strip(),
@@ -332,6 +362,44 @@ class SettingsTab(QWidget):
         self.main.status("Einstellungen gespeichert")
         self.main.schedule_changed()
         self.main.restart_telegram_bot()
+        self.main.restart_api()
+
+    def new_api_key(self):
+        from ..core.api import new_key
+        self.api_key.setText(new_key())
+
+    def show_qr(self):
+        import qrcode
+        from PySide6.QtGui import QColor, QImage, QPainter, QPixmap
+        from PySide6.QtWidgets import QDialog, QVBoxLayout as V
+        from ..core.api import connect_uri
+        self.save()
+        uri = connect_uri(self.api_port.value(), self.api_key.text().strip())
+        q = qrcode.QRCode(border=3, error_correction=qrcode.constants.ERROR_CORRECT_M)
+        q.add_data(uri)
+        q.make(fit=True)
+        m = q.get_matrix()
+        cell = max(4, 360 // len(m))
+        img = QImage(len(m) * cell, len(m) * cell, QImage.Format_RGB32)
+        img.fill(QColor("white"))
+        p = QPainter(img)
+        for y, row in enumerate(m):
+            for x, v in enumerate(row):
+                if v:
+                    p.fillRect(x * cell, y * cell, cell, cell, QColor("black"))
+        p.end()
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Handy-App verbinden")
+        v = V(dlg)
+        lab = QLabel()
+        lab.setPixmap(QPixmap.fromImage(img))
+        v.addWidget(lab)
+        info = QLabel(("In der App „Mit PC verbinden“ → QR-Code scannen.\n" if self.api_on.isChecked() else
+                       "Achtung: Schnittstelle ist ausgeschaltet – oben einschalten und speichern.\n")
+                      + uri.split("&key=")[0].replace("angebotsbot://verbinden?url=", "Adresse: "))
+        info.setWordWrap(True)
+        v.addWidget(info)
+        dlg.exec()
 
     def pair_telegram(self):
         self.tg_bot.setChecked(True)

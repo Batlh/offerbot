@@ -3,6 +3,13 @@
 Alle Versionen des AngebotsBot (offerbot). Die neueste steht oben.
 Jede Release auf GitHub enthält die fertige Windows-Version als ZIP (`AngebotsBot-windows.zip`).
 
+## 1.9.0 – 2026-11-16
+### Neu
+- **Android-App (Begleit-App)**: `AngebotsBot.apk` in jeder Release. Treffer (mit Grundpreis und Preis-Check),
+  Einkaufszettel zum Abhaken (geht auch offline mit dem letzten Stand), Watchlist bearbeiten, „Amazon prüfen“,
+  Prospekte blättern und zoomen, Suche in allen Angeboten, „Jetzt prüfen“
+- PC: Schnittstelle für die Handy-App (Einstellungen → Handy-App), nur mit Schlüssel, Einrichtung per QR-Code
+
 ## 1.8.0 – 2026-11-16
 ### Neu
 - Discord: Benachrichtigungen per Webhook in einen eigenen Discord-Kanal (neue Treffer, Wochenbericht,
