@@ -3,6 +3,10 @@
 Alle Versionen des AngebotsBot (offerbot). Die neueste steht oben.
 Jede Release auf GitHub enthält die fertige Windows-Version als ZIP (`AngebotsBot-windows.zip`).
 
+## 1.6.2 – 2026-11-16
+### Behoben
+- Umlaute und Gedankenstriche im Release-Text werden richtig angezeigt
+
 ## 1.6.1 – 2026-11-16
 ### Neu
 - Jeder Build erscheint automatisch als Release auf GitHub – mit Changelog und Liste der Änderungen

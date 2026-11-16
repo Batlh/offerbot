@@ -51,6 +51,9 @@ jobs:
         if: github.event_name != 'pull_request'
         id: rel
         shell: bash
+        env:
+          PYTHONUTF8: "1"           # Umlaute im Release-Text (Windows-Konsole ist sonst cp1252)
+          PYTHONIOENCODING: utf-8
         run: |
           VERSION=$(python -c "import re;print(re.search(r'__version__ = \"(.+?)\"', open('angebotsbot/__init__.py', encoding='utf-8').read()).group(1))")
           if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
