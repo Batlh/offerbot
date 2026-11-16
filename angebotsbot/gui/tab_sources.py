@@ -110,11 +110,14 @@ class SourcesTab(QWidget):
         self.tf = QFormLayout(self.typebox)
         self.rl.addWidget(self.typebox)
         bl2 = QHBoxLayout()
+        self.b_check = QPushButton("Prüfung im Browser lösen")
+        self.b_check.setToolTip("Öffnet die Seite in einem Browserfenster – Captcha selbst lösen, der Bot übernimmt die Freigabe")
+        self.b_check.clicked.connect(self.solve_check)
         self.b_test = QPushButton("Testen (ohne Speichern)")
         self.b_run = QPushButton("Jetzt abrufen")
         self.b_save = QPushButton("Speichern")
         bl2.addStretch()
-        for b in (self.b_test, self.b_run, self.b_save):
+        for b in (self.b_check, self.b_test, self.b_run, self.b_save):
             bl2.addWidget(b)
         self.rl.addLayout(bl2)
         self.rl.addStretch()
@@ -237,6 +240,16 @@ class SourcesTab(QWidget):
             self.main.config.save()
             self.current = None
             self.reload()
+
+    def solve_check(self):
+        s = self.current
+        if not s:
+            return
+        url = s.settings.get("start_url") or s.settings.get("url") or s.settings.get("profile_url") or ""
+        if not url.startswith("http"):
+            QMessageBox.information(self, "Prüfung", "Diese Quelle hat keine feste Seitenadresse.")
+            return
+        self.main.solve_checks([(s.id, s.name, url.replace("{query}", "angebote"))])
 
     def test(self):
         data = self._collect()

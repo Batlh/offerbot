@@ -90,6 +90,16 @@ def lu_fr_sources() -> list[Source]:
     ]
 
 
+def kaufland_source() -> Source:
+    return Source("Kaufland Prospekte", "prospekt_links", {
+        "retailer": "Kaufland",
+        "start_url": "https://filiale.kaufland.de/prospekte.html",
+        "follow_regex": "",
+        "pdf_regex": r"https://assets\.leaflets\.schwarz/leaflets/pdfs/[^\"'\s<>]+?/(?:Prospekt|Kaufland|Extra-Angebote)-[^\"'\s<>/]+?\.pdf",
+        "max_pdfs": 3,
+    }, True, "Prospekte", 720)
+
+
 def lu_extra_sources() -> list[Source]:
     """Blätterkataloge per Bild + Texterkennung (ab Version 1.5)."""
     return [
@@ -142,6 +152,7 @@ def default_sources() -> list[Source]:
             "retailers": "",
             "max_results": 40,
         }, True, "Prospekte", 360),
+        kaufland_source(),
         Source("Lidl Prospekte", "prospekt_schwarz", {
             "retailer": "Lidl",
             "start_url": "https://www.lidl.de/c/online-prospekte/s10005610",
@@ -183,7 +194,7 @@ class Config:
             if not self.path.exists():
                 self.watchlist = default_watchlist()
                 self.sources = default_sources()
-                self.settings["migrations"] = ["1.1-aldi", "1.1-kaufda", "1.4-lu-fr", "1.5-metro-lu"]
+                self.settings["migrations"] = ["1.1-aldi", "1.1-kaufda", "1.4-lu-fr", "1.5-metro-lu", "1.6-kaufland"]
                 self.save()
                 return
             raw = json.loads(self.path.read_text(encoding="utf-8"))
@@ -226,6 +237,11 @@ class Config:
             names = {s.name for s in self.sources}
             self.sources += [s for s in lu_extra_sources() if s.name not in names]
             done.add("1.5-metro-lu")
+            changed = True
+        if "1.6-kaufland" not in done:
+            if not any(s.name == "Kaufland Prospekte" for s in self.sources):
+                self.sources.append(kaufland_source())
+            done.add("1.6-kaufland")
             changed = True
         if changed:
             self.settings["migrations"] = sorted(done)

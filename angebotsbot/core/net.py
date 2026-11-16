@@ -17,6 +17,14 @@ class FetchError(Exception):
     pass
 
 
+class CheckRequired(FetchError):
+    """Die Seite verlangt eine Prüfung (Captcha), die der Nutzer selbst im Browserfenster löst."""
+
+    def __init__(self, url: str, message: str | None = None):
+        super().__init__(message or "Seite verlangt eine Prüfung (Captcha) – im Browserfenster selbst lösen")
+        self.url = url
+
+
 BOT_HINTS = ("cf-chl", "captcha", "verifizierung erforderlich", "are you a robot", "robot check",
              "geben sie die zeichen", "enable javascript and cookies")
 
@@ -47,8 +55,19 @@ class Fetcher:
     def get(self, url: str, as_json: bool = False, binary: bool = False):
         self._wait(url)
         t0 = time.time()
+        from .assist import is_challenge, site_for
+        headers = {}
+        site = site_for(url)
+        if site:  # vom Nutzer gelöste Prüfung: dieselben Cookies und dieselbe Browser-Kennung verwenden
+            host = (urlparse(url).hostname or "").lower()
+            jar = "; ".join(f"{c['name']}={c['value']}" for c in site["cookies"]
+                            if host.endswith(c.get("domain", "").lstrip(".").lower()))
+            if jar:
+                headers["Cookie"] = jar
+            if site.get("ua"):
+                headers["User-Agent"] = site["ua"]
         try:
-            r = self.session.get(url, timeout=float(self.settings.get("timeout_s", 20)))
+            r = self.session.get(url, timeout=float(self.settings.get("timeout_s", 20)), headers=headers or None)
         except requests.RequestException as e:
             LOG.warning("GET %s → Verbindungsfehler: %s", url, e)
             raise FetchError(f"Verbindung fehlgeschlagen: {e}") from e
@@ -56,6 +75,8 @@ class Fetcher:
                   f", umgeleitet nach {r.url}" if r.url != url else "")
         if r.status_code >= 400:
             LOG.info("GET %s → HTTP %s (Antwortanfang: %r)", url, r.status_code, r.text[:200])
+        if r.status_code in (403, 429, 503) and not binary and is_challenge(r.text):
+            raise CheckRequired(url)
         if r.status_code in (403, 429, 503):
             raise FetchError(f"HTTP {r.status_code} – die Seite blockt automatische Abrufe. "
                              f"Quelle ausschalten bzw. Prospekt als PDF importieren")
@@ -72,9 +93,11 @@ class Fetcher:
         if not r.encoding or r.encoding.lower() == "iso-8859-1":
             r.encoding = r.apparent_encoding or "utf-8"
         text = r.text
+        if is_challenge(text):
+            raise CheckRequired(url)
         low = text[:5000].lower()
         if any(h in low for h in BOT_HINTS) and len(text) < 60000:
-            raise FetchError("Die Seite verlangt eine Bot-Prüfung/Captcha – automatischer Abruf nicht möglich")
+            raise CheckRequired(url, "Die Seite verlangt eine Prüfung (Captcha) – im Browserfenster selbst lösen")
         return text
 
     def download(self, url: str, target: Path) -> Path:

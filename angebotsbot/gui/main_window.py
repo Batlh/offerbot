@@ -222,6 +222,8 @@ class MainWindow(QMainWindow):
             lines = [f"{w.name}: {o.title[:60]} – {fmt_price(o.price)}" for o, w in res.new_matches[:4]]
             more = f"\n… und {n - 4} weitere" if n > 4 else ""
             self.tray.showMessage(f"{n} neue Treffer", "\n".join(lines) + more, QSystemTrayIcon.Information, 10000)
+        if res.needs_check:
+            self.offer_checks(res.needs_check)
         ph = self.config.settings.get("phone") or {}
         if n and ph.get("mode", "aus") != "aus" and ph.get("only_new_matches", True):
             lines = [f"{w.name}: {o.title[:70]} – {fmt_price(o.price)}" + (f" ({o.merchant})" if o.merchant else "")
@@ -354,6 +356,42 @@ class MainWindow(QMainWindow):
             model.set_rows(list(reversed(series)))
             lay.addWidget(view, 2)
         dlg.exec()
+
+    # ---------------------------------------------------------------- Prüfungen (Captcha) selbst lösen
+    def offer_checks(self, checks):
+        """checks: [(Quellen-ID, Name, URL)] – fragt, ob das Browserfenster geöffnet werden soll."""
+        from PySide6.QtWidgets import QMessageBox
+        seen, todo = set(), []
+        for sid, name, url in checks:
+            if name not in seen:
+                seen.add(name)
+                todo.append((sid, name, url))
+        names = ", ".join(n for _, n, _ in todo)
+        if self.isHidden() and self.tray.isVisible():
+            self.tray.showMessage("Prüfung nötig", f"{names} will prüfen, ob du ein Mensch bist – AngebotsBot öffnen",
+                                  QSystemTrayIcon.Information, 10000)
+        box = QMessageBox(QMessageBox.Question, "Prüfung nötig",
+                          f"{names} will prüfen, ob du ein Mensch bist (Captcha).\n\n"
+                          "Soll ich ein Browserfenster öffnen? Du löst die Prüfung dort selbst, danach holt der Bot "
+                          "die Daten mit deiner Freigabe ab.", QMessageBox.Yes | QMessageBox.No, self)
+        box.button(QMessageBox.Yes).setText("Browserfenster öffnen")
+        box.button(QMessageBox.No).setText("Später")
+        if box.exec() == QMessageBox.Yes:
+            self.solve_checks(todo)
+
+    def solve_checks(self, todo):
+        from ..core import assist
+
+        def fn(log, prog, cancelled):
+            for _sid, name, url in todo:
+                assist.solve_in_browser(url, self.config.settings, log, cancel=cancelled)
+            return [sid for sid, _, _ in todo]
+
+        def done(ids):
+            self._end()
+            self.run_now(source_ids=ids)
+
+        self._start(fn, "Warte auf deine Prüfung im Browserfenster", done)
 
     # ---------------------------------------------------------------- Einkaufszettel, Handy, Wochenbericht
     def add_to_shopping(self, rows):

@@ -27,6 +27,7 @@ class RunResult:
     new_offers: int = 0
     new_matches: list[tuple[Offer, WatchItem]] = field(default_factory=list)
     errors: dict[str, str] = field(default_factory=dict)
+    needs_check: list[tuple[str, str, str]] = field(default_factory=list)  # (Quellen-ID, Name, URL)
     new_prospekte: list[int] = field(default_factory=list)
 
 
@@ -88,6 +89,9 @@ class Engine:
                 self.log(f"✓ {src.name}: {len(offers)} Einträge")
                 LOG.debug("Quelle %s: %d Einträge, Einstellungen %s", src.name, len(offers), src.settings)
             except Exception as e:
+                from .net import CheckRequired
+                if isinstance(e, CheckRequired):
+                    res.needs_check.append((src.id, src.name, e.url))
                 msg = str(e) or e.__class__.__name__
                 res.errors[src.name] = msg
                 self.db.set_status(src.id, False, 0, msg)

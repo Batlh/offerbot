@@ -471,3 +471,32 @@ def test_issuu_and_screens_and_metro(env, monkeypatch):
     assert ps["Cactus (LU)"]["pages"] == 3 and ps["Auchan (LU)"]["pages"] == 2
     assert f.shot_urls[0] == "https://player.flipsnack.com/index.html?hash=ABC%3D%3D&p=1" and f.shot_urls[1].endswith("p=3")
     assert any(o.merchant == "METRO" and "bundesweit" in o.info for o, w in res.new_matches)
+
+
+def test_check_required_and_saved_site(env, monkeypatch):
+    from angebotsbot.core import assist
+    from angebotsbot.core.net import CheckRequired, Fetcher
+    assert assist.is_challenge("<html><head><title>Just a moment...</title>")
+    assert not assist.is_challenge("<html><title>Prospekte</title>")
+    assist.save_sites({"kaufland.de": {"ua": "TestUA/1", "cookies": [
+        {"name": "cf_clearance", "value": "abc", "domain": ".kaufland.de", "path": "/", "expires": -1}]}})
+    sent = {}
+
+    class R:
+        def __init__(self, status, text):
+            self.status_code, self.text, self.url, self.encoding = status, text, "u", "utf-8"
+            self.content = text.encode()
+
+    def fake_get(url, timeout=None, headers=None):
+        sent.update(headers or {})
+        if "cf_clearance=abc" in (headers or {}).get("Cookie", ""):
+            return R(200, "<html>ok</html>")
+        return R(403, "<html><title>Just a moment...</title></html>")
+
+    f = Fetcher({"timeout_s": 5, "request_delay_s": 0})
+    monkeypatch.setattr(f.session, "get", fake_get)
+    assert f.get("https://filiale.kaufland.de/prospekte.html") == "<html>ok</html>"
+    assert sent["User-Agent"] == "TestUA/1"
+    assist.forget("kaufland.de")
+    with pytest.raises(CheckRequired):
+        f.get("https://filiale.kaufland.de/prospekte.html")

@@ -79,6 +79,7 @@ Groß-/Kleinschreibung und Umlaute sind egal (`kuhlschrank` findet „Kühlschra
 | kaufDA – Angebote in deiner Region | Prospekt-Angebote aller Händler im eingestellten Ort, je Watchlist-Eintrag + Themen wie Black-Week |
 | Lidl Prospekte (PDF + Produkte mit Preis) | geprüft; für Lidl Luxemburg Übersichtsseite von lidl.lu eintragen |
 | Direkter PDF-Link | für Händler mit fester PDF-Adresse ({kw} = Kalenderwoche) |
+| Kaufland | Prospekt-PDFs über filiale.kaufland.de |
 | Lidl Luxemburg | Prospekt-PDFs über lidl.lu |
 | ALDI Luxemburg | Wochen-Prospekt als PDF über folder.aldi.lu |
 | Delhaize Luxemburg | Seiten und Text direkt aus dem Online-Prospekt |
@@ -89,8 +90,11 @@ Groß-/Kleinschreibung und Umlaute sind egal (`kuhlschrank` findet „Kühlschra
 | marktguru-Suche (Beta, Browser-Modus) | Lebensmittel-Angebote vieler Händler je Watchlist-Eintrag |
 | idealo | Produktseiten-Links von idealo in der Watchlist eintragen (Feld „Produkt-Links“) – der Bot liest den Bestpreis und führt einen Preisverlauf. Eine idealo-Suche gibt es bewusst nicht: idealo verbietet automatischen Zugriff auf die Suche (robots.txt) |
 
-Seiten mit Bot-Prüfung/Captcha (z. B. Kaufland) können nicht automatisch gelesen werden –
-dort das Prospekt-PDF herunterladen und über **„PDF importieren …“** einlesen.
+**Prüfung (Captcha)?** Verlangt eine Seite „Bist du ein Mensch?“, fragt der Bot, ob er ein Browserfenster öffnen soll.
+Du löst die Prüfung dort selbst, der Bot übernimmt danach die Freigabe (Cookies, mit Windows verschlüsselt gespeichert)
+und holt die Daten. Läuft die Freigabe ab, fragt er erneut. Manuell: *Quellen → „Prüfung im Browser lösen“*.
+Der Bot löst oder umgeht keine Prüfung selbst. Seiten, die automatische Abrufe grundsätzlich sperren (z. B. Geizhals
+mit Fehler 403), bleiben gesperrt.
 
 Bitte die Intervalle nicht zu klein machen (Standard 30 Minuten, Prospekte 12 Stunden) – das schont die Seiten
 und verhindert Sperren.

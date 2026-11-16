@@ -178,6 +178,13 @@ class SettingsTab(QWidget):
         f8 = QFormLayout(g8)
         self.debug = QCheckBox("Debug-Modus: ausführliches Log (jede Anfrage, Zeiten, Details)")
         f8.addRow("", self.debug)
+        b_forget = QPushButton("Gespeicherte Seiten-Freigaben (gelöste Captchas) löschen")
+        def forget():
+            from ..core import assist
+            assist.forget()
+            self.main.status("Freigaben gelöscht")
+        b_forget.clicked.connect(forget)
+        f8.addRow("", b_forget)
         lay.addWidget(g8)
 
         bottom = QHBoxLayout()
