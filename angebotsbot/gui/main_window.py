@@ -109,6 +109,8 @@ class MainWindow(QMainWindow):
         self.update_next_label()
         self.log(f"{APP_NAME} gestartet · {len(self.config.watchlist)} Watchlist-Einträge, "
                  f"{sum(s.enabled for s in self.config.sources)} aktive Quellen")
+        self.tg_bot = None
+        self.restart_telegram_bot()
         if self.config.settings.get("auto_start"):
             QTimer.singleShot(1500, lambda: self.run_now())
 
@@ -358,6 +360,20 @@ class MainWindow(QMainWindow):
         dlg.exec()
 
     # ---------------------------------------------------------------- Prüfungen (Captcha) selbst lösen
+    def restart_telegram_bot(self):
+        from ..core import notify
+        from ..core.telegram_bot import TelegramBot
+        if self.tg_bot:
+            self.tg_bot.stop()
+            self.tg_bot = None
+        ph = self.config.settings.get("phone") or {}
+        token = notify._telegram_token()
+        if ph.get("telegram_bot") and token:
+            self.tg_bot = TelegramBot(token, self.config, self.db,
+                                      {"pruefen": lambda: QTimer.singleShot(0, self, lambda: self.run_now())})
+            self.tg_bot.start()
+            self.log("Telegram-Bot läuft – Befehle wie /treffer werden beantwortet")
+
     def offer_checks(self, checks):
         """checks: [(Quellen-ID, Name, URL)] – fragt, ob das Browserfenster geöffnet werden soll."""
         from PySide6.QtWidgets import QMessageBox
@@ -479,6 +495,8 @@ class MainWindow(QMainWindow):
 
     def quit(self):
         self._quitting = True
+        if getattr(self, "tg_bot", None):
+            self.tg_bot.stop()
         if self.task and self.task.isRunning():
             self.task.cancel()
             self.task.wait(5000)

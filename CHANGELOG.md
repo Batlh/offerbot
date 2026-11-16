@@ -3,6 +3,13 @@
 Alle Versionen des AngebotsBot (offerbot). Die neueste steht oben.
 Jede Release auf GitHub enthält die fertige Windows-Version als ZIP (`AngebotsBot-windows.zip`).
 
+## 1.7.0 – 2026-11-16
+### Neu
+- Eingebauter Telegram-Bot: antwortet auf /treffer, /zettel, /suche <Begriff>, /bericht, /pruefen, /stop
+  (läuft, solange der AngebotsBot läuft – kein Server nötig)
+- Mitmachen per `/start <Zugangscode>`; neue Treffer gehen an alle Angemeldeten, „Alle abmelden“ in den Einstellungen
+- Handy-Benachrichtigung „beide“: ntfy und Telegram gleichzeitig
+
 ## 1.6.2 – 2026-11-16
 ### Behoben
 - Umlaute und Gedankenstriche im Release-Text werden richtig angezeigt
