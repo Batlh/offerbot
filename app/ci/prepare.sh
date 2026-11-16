@@ -3,6 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 flutter create --project-name angebotsbot --org de.batlh --platforms=android .
+rm -f test/widget_test.dart  # Beispieltest von flutter create, passt nicht zur App
 flutter pub get
 MAN=android/app/src/main/AndroidManifest.xml
 # Name, Internet im Release (flutter create setzt es nur für Debug) und unverschlüsseltes HTTP im eigenen WLAN
