@@ -90,6 +90,29 @@ def lu_fr_sources() -> list[Source]:
     ]
 
 
+def lu_extra_sources() -> list[Source]:
+    """Blätterkataloge per Bild + Texterkennung (ab Version 1.5)."""
+    return [
+        Source("Cactus Luxemburg (Issuu)", "prospekt_issuu", {
+            "retailer": "Cactus (LU)",
+            "profile_url": "https://issuu.com/cactus_luxembourg",
+            "doc_regex": r"d_pliant_cactus_du_[0-9.]+",
+            "max_pdfs": 1,
+            "max_pages": 80,
+        }, True, "Prospekte", 720),
+        Source("Auchan Luxemburg (Blätterkatalog, Browser-Modus)", "prospekt_screens", {
+            "retailer": "Auchan (LU)",
+            "start_url": "https://auchan.lu/catalogue",
+            "follow_regex": r"https://auchan\.lu/catalogue/\d+-[a-z0-9-]+",
+            "viewer_regex": r"https://player\.flipsnack\.com/index\.html\?hash=[^\"'&<>\s]+",
+            "page_param": "p",
+            "step": 2,
+            "max_pdfs": 3,
+            "max_pages": 60,
+        }, False, "Prospekte", 1440),
+    ]
+
+
 def default_sources() -> list[Source]:
     return [
         Source("mydealz – Heiß", "rss", {"url": "https://www.mydealz.de/rss/hot"}, True, "Deals"),
@@ -115,6 +138,7 @@ def default_sources() -> list[Source]:
         Source("kaufDA – Angebote in deiner Region", "kaufda", {
             "themen": "Black-Week, Black-Friday",
             "ort": "",
+            "haendler": "Metro",
             "retailers": "",
             "max_results": 40,
         }, True, "Prospekte", 360),
@@ -126,6 +150,7 @@ def default_sources() -> list[Source]:
             "max_pdfs": 3,
         }, True, "Prospekte", 720),
         *lu_fr_sources(),
+        *lu_extra_sources(),
         Source("marktguru – Angebote je Watchlist (Browser-Modus, Beta)", "marktguru", {
             "url": "https://www.marktguru.de/search/{query}",
             "retailers": "",
@@ -158,7 +183,7 @@ class Config:
             if not self.path.exists():
                 self.watchlist = default_watchlist()
                 self.sources = default_sources()
-                self.settings["migrations"] = ["1.1-aldi", "1.1-kaufda", "1.4-lu-fr"]
+                self.settings["migrations"] = ["1.1-aldi", "1.1-kaufda", "1.4-lu-fr", "1.5-metro-lu"]
                 self.save()
                 return
             raw = json.loads(self.path.read_text(encoding="utf-8"))
@@ -193,6 +218,14 @@ class Config:
             names = {s.name for s in self.sources}
             self.sources += [s for s in lu_fr_sources() if s.name not in names]
             done.add("1.4-lu-fr")
+            changed = True
+        if "1.5-metro-lu" not in done:
+            for s in self.sources:
+                if s.type == "kaufda" and "haendler" not in s.settings:
+                    s.settings["haendler"] = "Metro"
+            names = {s.name for s in self.sources}
+            self.sources += [s for s in lu_extra_sources() if s.name not in names]
+            done.add("1.5-metro-lu")
             changed = True
         if changed:
             self.settings["migrations"] = sorted(done)

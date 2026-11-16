@@ -144,6 +144,27 @@ def run_portal(ctx: RunContext, source: Source, portal: str) -> list[Offer]:
     for thema in [t.strip() for t in (st.get("themen") or "").split(",") if t.strip()]:
         if not collect([thema] + slug_candidates(thema), "deal"):
             missing.append(thema)
+    # feste Händler (z. B. Metro): deren Angebotsseite + Sortimentsseiten je Watchlist-Eintrag
+    for h in [x.strip() for x in (st.get("haendler") or "").split(",") if x.strip()] if portal == "kaufda" else []:
+        hslug = quote("-".join(w[:1].upper() + w[1:] for w in _ascii(h).split()))
+        pages = [(f"{base}/Geschaefte/{hslug}", "")]
+        for w in ctx.watchlist:
+            if w.enabled and w.in_prospekte and w.search_online:
+                pages += [(f"{base}/{hslug}/Sortiment/{quote(sl)}", w.id) for sl in slug_candidates(w.search_text)[:2]]
+        done_watch: set[str] = set()
+        for url, wid in pages:
+            if ctx.cancel() or (wid and wid in done_watch):
+                continue
+            html_text = _get(ctx, url, browser)
+            if html_text is None:
+                continue
+            offers, _city = parse_page(html_text, url, source, "prospekt")
+            for o in offers[:max_results]:
+                o.watch_id = wid
+                o.info = ("bundesweit · " + o.info).strip(" ·")
+                out.append(o)
+            if wid:
+                done_watch.add(wid)
     for w in ctx.watchlist:
         if w.enabled and w.in_prospekte and w.search_online:
             q = (getattr(w, query_field, "") or "").strip() or w.search_text
@@ -175,6 +196,8 @@ register(SourceType(
     fields=[FieldSpec("themen", "Feste Themen (Komma-getrennt)", default="Black-Week, Black-Friday",
                       help="z. B. Black-Week, Black-Friday, Weihnachten, Adventskalender"),
             FieldSpec("ort", "Ort (leer = Einstellungen → Region)"),
+            FieldSpec("haendler", "Zusätzliche Händler bundesweit (Komma-getrennt)", default="Metro",
+                      help="Händler ohne Filial-Angebote im Ort, z. B. Metro – deren kaufDA-Händlerseite wird mitgelesen"),
             FieldSpec("retailers", "Nur diese Händler (optional)", help="z. B. Aldi, Lidl, Kaufland, REWE, Globus"),
             FieldSpec("max_results", "Max. Angebote je Seite", kind="int", default=40),
             FieldSpec("browser", "Im Browser-Modus laden", kind="bool", default=False)],

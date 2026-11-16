@@ -208,6 +208,111 @@ def run_flipbuilder(ctx: RunContext, source: Source) -> list[Offer]:
     return []
 
 
+# ---------------------------------------------------------------- Bilder → PDF (für Texterkennung)
+def _images_to_pdf(images: list[bytes], target):
+    import pymupdf
+    doc = pymupdf.open()
+    for img in images:
+        with pymupdf.open(stream=img) as im:
+            r = im[0].rect
+        pg = doc.new_page(width=r.width, height=r.height)
+        pg.insert_image(pg.rect, stream=img)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    doc.save(target, deflate=True)
+    return target
+
+
+def _register_images(ctx: RunContext, retailer: str, title: str, key_url: str, images: list[bytes]) -> None:
+    target = prospekt_dir() / safe_name(retailer) / (safe_name(f"{date.today():%Y-%m-%d}_{retailer}_{title}") + ".pdf")
+    _images_to_pdf(images, target)
+    pid = ctx.db.add_prospekt(retailer, title, key_url, str(target))
+    if pid:
+        ctx.extra.setdefault("new_prospekte", []).append(pid)
+        ctx.log(f"Prospekt geladen: {retailer} – {title} ({len(images)} Seiten, Texterkennung folgt)")
+
+
+# ---------------------------------------------------------------- Issuu (z. B. Cactus)
+def run_issuu(ctx: RunContext, source: Source) -> list[Offer]:
+    st = source.settings
+    retailer = st.get("retailer") or source.name
+    profile = st.get("profile_url", "").rstrip("/")
+    doc_re = st.get("doc_regex") or r"[a-z0-9_.\-]+"
+    max_pdfs, max_pages = int(st.get("max_pdfs") or 1), int(st.get("max_pages") or 80)
+    user = profile.rsplit("/", 1)[-1]
+    page = ctx.fetcher.get(profile)
+    docs: list[str] = []
+    for m in re.finditer(rf"/{re.escape(user)}/docs/({doc_re})", page):
+        if m.group(1) not in docs:
+            docs.append(m.group(1))
+    if not docs:
+        raise ValueError("Keine passenden Prospekte im Issuu-Profil gefunden – Muster prüfen")
+    for d in docs[:max_pdfs]:
+        if ctx.cancel():
+            break
+        doc_url = f"https://issuu.com/{user}/docs/{d}"
+        known = ctx.db.prospekt_known(doc_url)
+        if ctx.extra.get("dry_run"):
+            ctx.log(f"Prospekt gefunden{' (schon geladen)' if known else ''}: {retailer} – {d}\n    {doc_url}")
+            continue
+        if known:
+            continue
+        html_text = ctx.fetcher.get(doc_url)
+        m = re.search(r"https://image\.isu\.pub/([A-Za-z0-9-]+)/jpg/", html_text)
+        if not m:
+            raise ValueError(f"Issuu: keine Seitenbilder für {d} gefunden")
+        images: list[bytes] = []
+        for n in range(1, max_pages + 1):
+            if ctx.cancel():
+                break
+            try:
+                images.append(ctx.fetcher.get(f"https://image.isu.pub/{m.group(1)}/jpg/page_{n}.jpg", binary=True))
+            except Exception:
+                break  # keine weitere Seite
+        if images:
+            _register_images(ctx, retailer, d, doc_url, images)
+    return []
+
+
+# ---------------------------------------------------------------- Blätterkatalog per Bildschirmfoto (z. B. Flipsnack)
+def run_screens(ctx: RunContext, source: Source) -> list[Offer]:
+    st = source.settings
+    retailer = st.get("retailer") or source.name
+    start = ctx.fill(st.get("start_url", "").strip())
+    viewer_re = st.get("viewer_regex") or r"https://player\.flipsnack\.com/index\.html\?hash=[^\"'&<>\s]+"
+    follow = (st.get("follow_regex") or "").strip()
+    param, step = st.get("page_param") or "p", max(1, int(st.get("step") or 1))
+    max_pdfs, max_pages = int(st.get("max_pdfs") or 2), int(st.get("max_pages") or 60)
+    pages_to_check = [start]
+    if follow:
+        html_start = ctx.fetcher.get(start)
+        subs: list[str] = []
+        for m in re.finditer(follow, html_start):
+            if m.group(0) not in subs:
+                subs.append(m.group(0))
+        pages_to_check = subs[:max_pdfs] or [start]
+    viewers: list[tuple[str, str]] = []
+    for pg in pages_to_check:
+        html_text = ctx.fetcher.get(pg)
+        m = re.search(viewer_re, html_text)
+        if m:
+            viewers.append((html.unescape(m.group(0)), pg.rstrip("/").rsplit("/", 1)[-1]))
+    if not viewers:
+        raise ValueError("Kein Blätterkatalog gefunden – Muster prüfen")
+    for viewer, title in viewers[:max_pdfs]:
+        known = ctx.db.prospekt_known(viewer)
+        if ctx.extra.get("dry_run"):
+            ctx.log(f"Katalog gefunden{' (schon geladen)' if known else ''}: {retailer} – {title}\n    {viewer}")
+            continue
+        if known or ctx.cancel():
+            continue
+        sep = "&" if "?" in viewer else "?"
+        urls = [f"{viewer}{sep}{param}={n}" for n in range(1, max_pages + 1, step)]
+        shots = ctx.fetcher.screenshots(urls, cancel=ctx.cancel)
+        if shots:
+            _register_images(ctx, retailer, title, viewer, shots)
+    return []
+
+
 # ---------------------------------------------------------------- Direkter PDF-Link
 def run_direct(ctx: RunContext, source: Source) -> list[Offer]:
     st = source.settings
@@ -300,6 +405,30 @@ register(SourceType(
             FieldSpec("link_regex", "Muster: Link zum Viewer (Regex)"),
             FieldSpec("max_pdfs", "Max. Prospekte je Lauf", kind="int", default=2)],
     run=run_flipbuilder,
+))
+register(SourceType(
+    key="prospekt_issuu", label="Prospekt von Issuu (z. B. Cactus)", group="Prospekte",
+    description="Liest das Issuu-Profil eines Händlers, lädt die Seitenbilder des neuesten Prospekts und macht daraus "
+                "eine PDF. Der Text wird per Texterkennung gelesen (dauert pro Seite ein paar Sekunden).",
+    fields=[FieldSpec("retailer", "Händler"), FieldSpec("profile_url", "Issuu-Profil", help="z. B. https://issuu.com/cactus_luxembourg"),
+            FieldSpec("doc_regex", "Muster: Prospekt-Name (Regex)"),
+            FieldSpec("max_pdfs", "Max. Prospekte je Lauf", kind="int", default=1),
+            FieldSpec("max_pages", "Max. Seiten", kind="int", default=80)],
+    run=run_issuu,
+))
+register(SourceType(
+    key="prospekt_screens", label="Blätterkatalog per Bildschirmfoto (Browser-Modus)", group="Prospekte",
+    description="Für Online-Blätterkataloge ohne Download (z. B. Flipsnack bei Auchan Luxemburg): Der Bot blättert im "
+                "unsichtbaren Browser Seite für Seite, macht Bildschirmfotos und liest sie per Texterkennung. "
+                "Braucht den Browser-Modus und dauert ein paar Minuten.",
+    fields=[FieldSpec("retailer", "Händler"), FieldSpec("start_url", "Übersichtsseite"),
+            FieldSpec("follow_regex", "Muster: Links zu den Katalogseiten (Regex, optional)"),
+            FieldSpec("viewer_regex", "Muster: Adresse des Blätterkatalogs (Regex)"),
+            FieldSpec("page_param", "Seiten-Parameter", default="p"),
+            FieldSpec("step", "Seiten je Bild (2 = Doppelseite)", kind="int", default=2),
+            FieldSpec("max_pdfs", "Max. Kataloge je Lauf", kind="int", default=3),
+            FieldSpec("max_pages", "Max. Seiten", kind="int", default=60)],
+    run=run_screens,
 ))
 register(SourceType(
     key="prospekt_pdf", label="Direkter PDF-Link", group="Prospekte",

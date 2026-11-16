@@ -83,7 +83,9 @@ Groß-/Kleinschreibung und Umlaute sind egal (`kuhlschrank` findet „Kühlschra
 | ALDI Luxemburg | Wochen-Prospekt als PDF über folder.aldi.lu |
 | Delhaize Luxemburg | Seiten und Text direkt aus dem Online-Prospekt |
 | Bonial.fr – Frankreich | Carrefour, E.Leclerc, Auchan, Intermarché, Super U, Lidl/Aldi FR – für den Ort unter *Region → Ort Frankreich* (Standard Thionville), sonst landesweit. Französischer Suchtext je Watchlist-Eintrag im Feld „Suchtext FR“ |
-| Cactus, Auchan Luxemburg, Metro | kein sauberer Download (Issuu/Flipsnack bzw. nur mit Kundenkonto) – PDF über „PDF importieren …“ einlesen |
+| Cactus Luxemburg | Seitenbilder des neuesten Prospekts von Issuu, Text per Texterkennung |
+| Auchan Luxemburg | Blätterkatalog (Flipsnack) wird im Browser-Modus Seite für Seite fotografiert und per Texterkennung gelesen – Quelle einschalten, sobald der Browser-Modus an ist |
+| Metro | über kaufDA (Feld „Zusätzliche Händler bundesweit“ in der kaufDA-Quelle) |
 | marktguru-Suche (Beta, Browser-Modus) | Lebensmittel-Angebote vieler Händler je Watchlist-Eintrag |
 | idealo | Produktseiten-Links von idealo in der Watchlist eintragen (Feld „Produkt-Links“) – der Bot liest den Bestpreis und führt einen Preisverlauf. Eine idealo-Suche gibt es bewusst nicht: idealo verbietet automatischen Zugriff auf die Suche (robots.txt) |
 

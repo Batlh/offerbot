@@ -117,3 +117,39 @@ class Fetcher:
                 return html
             finally:
                 browser.close()
+
+    def screenshots(self, urls, wait_ms: int = 5000, width: int = 2200, height: int = 1500,
+                    cancel=lambda: False) -> list[bytes]:
+        """Blätterkatalog: jede Adresse im Browser öffnen und ein Bildschirmfoto machen.
+        Stoppt, wenn sich das Bild nicht mehr ändert (Ende des Katalogs)."""
+        if not self.settings.get("browser_mode"):
+            raise FetchError("Browser-Modus ist aus – in den Einstellungen den Haken setzen (richtet sich selbst ein)")
+        import hashlib
+        from .browser_setup import prepare_env
+        prepare_env()
+        from playwright.sync_api import sync_playwright  # type: ignore
+        channel = self.settings.get("browser_channel") or None
+        if channel == "chromium":
+            channel = None
+        shots: list[bytes] = []
+        last = ""
+        with sync_playwright() as p:
+            browser = p.chromium.launch(channel=channel, headless=True) if channel else p.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(viewport={"width": width, "height": height}, locale="de-DE")
+                for url in urls:
+                    if cancel():
+                        break
+                    self._wait(url)
+                    page.goto(url, timeout=int(float(self.settings.get("timeout_s", 20)) * 1000) + 20000)
+                    page.wait_for_timeout(wait_ms)
+                    img = page.screenshot(type="png")
+                    h = hashlib.sha1(img).hexdigest()
+                    LOG.debug("Bildschirmfoto %s: %d Bytes", url, len(img))
+                    if h == last:
+                        break
+                    last = h
+                    shots.append(img)
+            finally:
+                browser.close()
+        return shots

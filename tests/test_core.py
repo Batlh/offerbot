@@ -421,3 +421,53 @@ def test_debug_package(env):
         cfg_txt = z.read("config_ohne_geheimnisse.json").decode("utf-8")
     assert "logs/angebotsbot.log" in names and "status.json" in names
     assert "geheim123" not in cfg_txt
+
+
+def test_issuu_and_screens_and_metro(env, monkeypatch):
+    cfg, db, eng = env
+    from angebotsbot.core import engine as engmod
+    from angebotsbot.core.models import Source, WatchItem
+    from angebotsbot.core.net import FetchError
+    src_doc = pymupdf.open()
+    pg = src_doc.new_page(width=300, height=400)
+    pg.insert_text((20, 60), "Butter 250 g 1.99", fontsize=20)
+    jpg = pg.get_pixmap().tobytes("jpg")
+    png = pg.get_pixmap().tobytes("png")
+
+    class IFetcher(FakeFetcher):
+        def get(self, url, as_json=False, binary=False):
+            if url == "https://issuu.com/cactus_luxembourg":
+                return '<a href="/cactus_luxembourg/docs/d_pliant_cactus_du_17.11.2026">a</a>'
+            if url.endswith("/docs/d_pliant_cactus_du_17.11.2026"):
+                return '<meta property="og:image" content="https://image.isu.pub/261116-abc/jpg/page_1_social_preview.jpg">'
+            if "image.isu.pub/261116-abc/jpg/page_" in url:
+                n = int(url.rsplit("_", 1)[1].split(".")[0])
+                if n <= 3:
+                    return jpg
+                raise FetchError("HTTP 404")
+            if url == "https://auchan.lu/catalogue":
+                return '<a href="https://auchan.lu/catalogue/143-fete-11-26">x</a>'
+            if url == "https://auchan.lu/catalogue/143-fete-11-26":
+                return '<iframe src="https://player.flipsnack.com/index.html?hash=ABC%3D%3D&amp;p=1&amp;t=1"></iframe>'
+            if "kaufda.de/Geschaefte/Metro" in url:
+                return (FIX / "kaufda_butter.html").read_text(encoding="utf-8").replace("REWE", "METRO")
+            raise FetchError("HTTP 404 bei " + url)
+
+        def screenshots(self, urls, **k):
+            self.shot_urls = urls
+            return [png, png]
+
+    f = IFetcher({})
+    monkeypatch.setattr(engmod, "Fetcher", lambda s: f)
+    cfg.settings["ocr"] = False
+    from angebotsbot.core.config import lu_extra_sources
+    cfg.sources = lu_extra_sources() + [Source("kaufDA", "kaufda", {"themen": "", "haendler": "Metro"}, group="Prospekte")]
+    for s in cfg.sources:
+        s.enabled = True
+    cfg.watchlist = [WatchItem("Butter", keywords="butter -schmalz", in_prospekte=True, in_deals=False, search_online=False)]
+    res = eng.run()
+    assert not res.errors, res.errors
+    ps = {p["retailer"]: p for p in db.prospekte()}
+    assert ps["Cactus (LU)"]["pages"] == 3 and ps["Auchan (LU)"]["pages"] == 2
+    assert f.shot_urls[0] == "https://player.flipsnack.com/index.html?hash=ABC%3D%3D&p=1" and f.shot_urls[1].endswith("p=3")
+    assert any(o.merchant == "METRO" and "bundesweit" in o.info for o, w in res.new_matches)
