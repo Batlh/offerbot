@@ -11,7 +11,7 @@ from ..core.models import WatchItem
 
 HELP = ("<b>Stichwörter:</b> alle Wörter müssen vorkommen · <code>a|b</code> = a oder b · "
         "<code>\"2 tb\"</code> = Wortgruppe · <code>-gebraucht</code> = darf nicht vorkommen. "
-        "Leer = Name wird verwendet. Wörter zählen auch als Wortanfang (butter → Butterkeks).")
+        "Leer = Name wird verwendet. Wörter ab 4 Buchstaben zählen auch mitten im Wort (butter → Markenbutter, Butterkeks).")
 
 
 class WatchTab(QWidget):
@@ -44,14 +44,14 @@ class WatchTab(QWidget):
         f = QFormLayout(box)
         self.name = QLineEdit()
         self.keywords = QLineEdit(placeholderText='z. B. ssd 2tb|"2 tb" -gebraucht')
-        self.query = QLineEdit(placeholderText="Suchtext für Geizhals/Shop-Suchen/marktguru (leer = Name)")
+        self.query = QLineEdit(placeholderText="Suchtext für kaufDA/Geizhals/Shops (leer = Name) – für kaufDA am besten ein Wort, z. B. Kaffeebohnen")
         self.category = QComboBox(editable=True)
         self.category.addItems(["Allgemein", "Technik", "Gaming", "Haushalt", "Lebensmittel", "Drogerie", "Kleidung"])
         self.max_price = QDoubleSpinBox(maximum=100000, decimals=2, suffix=" €", specialValueText="egal")
         self.min_discount = QDoubleSpinBox(maximum=100, decimals=0, suffix=" %", specialValueText="egal")
         self.in_deals = QCheckBox("Deals & Shops (Blackweek, mydealz, Geizhals …)")
-        self.in_prospekte = QCheckBox("Prospekte (Wochenangebote)")
-        self.search_online = QCheckBox("Gezielt suchen lassen (Geizhals, Shop-Suchen, marktguru)")
+        self.in_prospekte = QCheckBox("Prospekte (Wochenangebote, kaufDA, ALDI, Lidl …)")
+        self.search_online = QCheckBox("Gezielt suchen lassen (kaufDA, Geizhals, Shop-Suchen)")
         self.enabled = QCheckBox("Aktiv")
         self.urls = QPlainTextEdit(placeholderText="Ein Link pro Zeile – Preis wird bei jedem Lauf direkt geprüft\n"
                                                    "z. B. https://www.amazon.de/dp/… oder https://geizhals.de/…")

@@ -31,6 +31,18 @@ class SettingsTab(QWidget):
         scroll.setWidget(body)
         lay = QVBoxLayout(body)
 
+        g0 = QGroupBox("Region")
+        f0 = QFormLayout(g0)
+        self.ort = QLineEdit(placeholderText="z. B. Trier")
+        self.plz = QLineEdit(placeholderText="z. B. 54290")
+        self.plz.setMaximumWidth(120)
+        f0.addRow("Ort", self.ort)
+        f0.addRow("PLZ", self.plz)
+        rh = QLabel("Wird für kaufDA (Angebote in deinem Ort) genutzt und als {ort}/{plz} in eigenen Quellen-URLs.")
+        rh.setStyleSheet("color:#555")
+        f0.addRow(rh)
+        lay.addWidget(g0)
+
         g1 = QGroupBox("Automatik")
         f1 = QFormLayout(g1)
         self.interval = QSpinBox(maximum=1440, suffix=" min", specialValueText="aus (nur manuell)")
@@ -133,6 +145,9 @@ class SettingsTab(QWidget):
     def load(self):
         s = self.main.config.settings
         a = s["ai"]
+        reg = s.get("region") or {}
+        self.ort.setText(reg.get("ort", ""))
+        self.plz.setText(reg.get("plz", ""))
         self.interval.setValue(int(s["interval_min"]))
         self.auto_start.setChecked(bool(s["auto_start"]))
         self.notify.setChecked(bool(s["notify"]))
@@ -166,7 +181,8 @@ class SettingsTab(QWidget):
                  request_delay_s=self.delay.value(), timeout_s=self.timeout.value(),
                  user_agent=self.ua.text().strip() or s["user_agent"], browser_mode=self.browser.isChecked(),
                  ocr=self.ocr.isChecked(), export_dir=self.export_dir.text().strip(),
-                 export_on_run=self.export_on_run.isChecked())
+                 export_on_run=self.export_on_run.isChecked(),
+                 region={"ort": self.ort.text().strip(), "plz": self.plz.text().strip()})
         s["ai"].update(mode=self.ai_mode.currentText(), claude_model=self.claude_model.text().strip(),
                        openai_model=self.openai_model.text().strip(), use_for_prospekte=self.ai_auto.isChecked(),
                        pages="alle" if self.ai_pages.currentIndex() == 1 else "treffer",

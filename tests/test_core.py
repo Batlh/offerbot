@@ -176,3 +176,75 @@ def test_ocr_page(tmp_path):
     pages = index_pdf(path, use_ocr=True)
     assert pages[0][2] is True
     assert "kerrygold" in pages[0][1].lower()
+
+
+def test_kaufda(env, monkeypatch):
+    cfg, db, eng = env
+    from angebotsbot.core import engine as engmod
+    from angebotsbot.core.models import Source, WatchItem
+    from angebotsbot.core.net import FetchError
+    from angebotsbot.core.sources.kaufda import parse_page, slug_candidates
+    assert slug_candidates("kaffee bohnen") == ["Kaffee-Bohnen", "Kaffeebohnen", "Kaffee", "Bohnen"]
+    assert slug_candidates("Käse")[0] == "Kaese" and slug_candidates("coca cola")[0] == "Coca-Cola"
+    offers, city = parse_page((FIX / "kaufda_butter.html").read_text(encoding="utf-8"), "u", Source("k", "kaufda"))
+    assert city == "Trier" and len(offers) == 4
+    o = offers[1]
+    assert o.merchant == "Netto Marken-Discount" and o.price == 0.99 and o.old_price == 2.99
+    assert o.unit_price == "3.96 - 4.21 / kg" and "UVP" in o.info and o.valid_to == "21.11."
+    assert offers[0].title == "Landliebe Butter – streichzart 250-g-Pckg."
+
+    class KFetcher(FakeFetcher):
+        calls = []
+
+        def get(self, url, as_json=False, binary=False):
+            self.calls.append(url)
+            if url.endswith("/Trier/Angebote/Butter"):
+                return (FIX / "kaufda_butter.html").read_text(encoding="utf-8")
+            if url.endswith("/Trier/Angebote/Black-Week"):
+                return (FIX / "kaufda_blackweek.html").read_text(encoding="utf-8")
+            raise FetchError("HTTP 404 bei " + url)
+
+    monkeypatch.setattr(engmod, "Fetcher", lambda s: KFetcher({}))
+    cfg.sources = [Source("kaufDA", "kaufda", {"themen": "Black-Week", "retailers": "", "max_results": 40}, group="Prospekte")]
+    cfg.watchlist = [WatchItem("Butter", keywords="butter -schmalz", max_price=1.2, in_deals=False, in_prospekte=True),
+                     WatchItem("SSD", keywords="ssd 2tb", max_price=120),
+                     WatchItem("Kaffee", query="kaffee bohnen", in_deals=False, in_prospekte=True)]
+    res = eng.run()
+    assert not res.errors, res.errors
+    got = sorted(f"{w.name}|{o.merchant}|{o.price}" for o, w in res.new_matches)
+    assert got == ["Butter|ALDI SÜD|1.19", "Butter|Netto Marken-Discount|0.99", "SSD|MediaMarkt|99.0"], got
+    assert any(u.endswith("/Trier/Angebote/Kaffeebohnen") for u in KFetcher.calls)
+
+
+def test_migration_and_aldi_title(tmp_path, monkeypatch):
+    monkeypatch.setenv("ANGEBOTSBOT_DATA", str(tmp_path))
+    old = {"settings": {"interval_min": 15}, "watchlist": [], "sources": [
+        {"name": "ALDI SÜD Prospekte", "type": "prospekt_links", "group": "Prospekte", "id": "a1",
+         "settings": {"retailer": "ALDI SÜD", "start_url": "https://www.aldi-sued.de/prospekte",
+                      "follow_regex": "x", "pdf_regex": "y", "max_pdfs": 3}}]}
+    (tmp_path / "config.json").write_text(json.dumps(old), encoding="utf-8")
+    from angebotsbot.core.config import Config
+    from angebotsbot.core.db import Database
+    from angebotsbot.core.engine import Engine
+    from angebotsbot.core import engine as engmod
+    c = Config()
+    assert c.settings["interval_min"] == 15 and c.settings["region"]["ort"] == "Trier"
+    aldi = c.source("a1")
+    assert aldi.settings["start_url"] == "https://prospekt.aldi-sued.de/" and aldi.settings["follow_regex"] == ""
+    assert any(s.type == "kaufda" for s in c.sources)
+    n = len(c.sources)
+    c2 = Config()  # Migration nur einmal
+    assert len(c2.sources) == n
+
+    class AFetcher(FakeFetcher):
+        def get(self, url, as_json=False, binary=False):
+            self.last_url = "https://prospekt.aldi-sued.de/kw47-26-op-mp/page/1"
+            return '<script>a="https://view.publitas.com/1/2/pdfs/abc.pdf?x=1"</script>'
+
+    monkeypatch.setattr(engmod, "Fetcher", lambda s: AFetcher({}))
+    c2.settings["ocr"] = False
+    c2.sources = [c2.source("a1")]
+    eng = Engine(c2, Database(), log=lambda m: None)
+    res = eng.run()
+    assert not res.errors, res.errors
+    assert [r["title"] for r in eng.db.prospekte()] == ["kw47-26-op-mp"]

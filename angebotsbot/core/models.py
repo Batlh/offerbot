@@ -41,7 +41,7 @@ class Offer:
     @property
     def uid(self) -> str:
         if self.kind == "deal" and self.url.startswith("http"):
-            key = f"deal|{self.url}|{self.price}"  # gleicher Deal aus mehreren Feeds = ein Eintrag
+            key = f"deal|{self.url}|{self.title}|{self.price}"  # gleicher Deal aus mehreren Feeds = ein Eintrag
         else:
             key = f"{self.source_id}|{self.url}|{self.title}|{self.price}|{self.valid_from}"
         return hashlib.sha1(key.encode("utf-8")).hexdigest()[:16]

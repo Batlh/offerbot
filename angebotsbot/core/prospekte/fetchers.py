@@ -60,7 +60,7 @@ def find_pdf_links(html_text: str, base_url: str, pdf_regex: str) -> list[str]:
 def run_links(ctx: RunContext, source: Source) -> list[Offer]:
     st = source.settings
     retailer = st.get("retailer") or source.name
-    start = st.get("start_url", "").strip()
+    start = ctx.fill(st.get("start_url", "").strip())
     pdf_regex = st.get("pdf_regex") or r"https?://[^\"'\s<>]+?\.pdf[^\"'\s<>]*"
     follow = (st.get("follow_regex") or "").strip()
     max_pdfs = int(st.get("max_pdfs") or 3)
@@ -82,8 +82,13 @@ def run_links(ctx: RunContext, source: Source) -> list[Offer]:
             if pdfs:
                 targets.append((pdfs[0], sub.rstrip("/").rsplit("/", 1)[-1]))
     else:
-        for u in find_pdf_links(page, start, pdf_regex)[:max_pdfs]:
-            targets.append((u, u.split("?")[0].rsplit("/", 1)[-1].removesuffix(".pdf")))
+        # Titel aus der (ggf. umgeleiteten) Seitenadresse, z. B. prospekt.aldi-sued.de/kw47-26-op-mp/page/1
+        final = getattr(ctx.fetcher, "last_url", "") or start
+        slug = re.sub(r"/page/\d+/?$", "", final.split("?")[0].rstrip("/")).rsplit("/", 1)[-1]
+        for i, u in enumerate(find_pdf_links(page, start, pdf_regex)[:max_pdfs]):
+            fname = u.split("?")[0].rsplit("/", 1)[-1].removesuffix(".pdf")
+            title = slug if slug and "." not in slug and i == 0 else fname
+            targets.append((u, title))
     if not targets:
         raise ValueError("Keine PDF-Links gefunden – Muster prüfen (Button 'Testen')")
     for url, title in targets:
@@ -176,7 +181,7 @@ def parse_marktguru_text(text: str, source: Source) -> list[Offer]:
 
 def run_marktguru(ctx: RunContext, source: Source) -> list[Offer]:
     st = source.settings
-    url_t = st.get("url") or "https://www.marktguru.de/search/{query}"
+    url_t = ctx.fill(st.get("url") or "https://www.marktguru.de/search/{query}")
     allowed = [r.strip().lower() for r in (st.get("retailers") or "").split(",") if r.strip()]
     out: list[Offer] = []
     for w in ctx.watchlist:

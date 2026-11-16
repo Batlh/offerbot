@@ -36,6 +36,12 @@ class RunContext:
     cancel: Callable[[], bool] = lambda: False
     extra: dict = field(default_factory=dict)
 
+    def fill(self, url: str) -> str:
+        """Platzhalter {ort} und {plz} aus Einstellungen → Region einsetzen."""
+        from urllib.parse import quote
+        reg = self.settings.get("region") or {}
+        return url.replace("{ort}", quote(reg.get("ort", ""))).replace("{plz}", quote(reg.get("plz", "")))
+
     def watch_for_search(self) -> list[WatchItem]:
         return [w for w in self.watchlist if w.enabled and w.search_online]
 

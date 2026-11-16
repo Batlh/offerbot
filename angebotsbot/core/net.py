@@ -27,6 +27,7 @@ class Fetcher:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.8,*/*;q=0.7",
         })
         self._last: dict[str, float] = {}
+        self.last_url = ""
         self._lock = threading.Lock()
 
     def _wait(self, url: str) -> None:
@@ -46,10 +47,11 @@ class Fetcher:
         except requests.RequestException as e:
             raise FetchError(f"Verbindung fehlgeschlagen: {e}") from e
         if r.status_code in (403, 429, 503):
-            raise FetchError(f"HTTP {r.status_code} – die Seite blockt automatische Abrufe "
-                             f"(ggf. Browser-Modus aktivieren oder PDF manuell importieren)")
+            raise FetchError(f"HTTP {r.status_code} – die Seite blockt automatische Abrufe. "
+                             f"Quelle ausschalten bzw. Prospekt als PDF importieren")
         if r.status_code >= 400:
             raise FetchError(f"HTTP {r.status_code} bei {url}")
+        self.last_url = r.url
         if binary:
             return r.content
         if as_json:

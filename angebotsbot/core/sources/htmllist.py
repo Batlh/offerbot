@@ -41,7 +41,7 @@ def parse_list(html_text: str, base_url: str, st: dict, source: Source, kind: st
 
 def run(ctx: RunContext, source: Source) -> list[Offer]:
     st = source.settings
-    url = st.get("url", "").strip()
+    url = ctx.fill(st.get("url", "").strip())
     if not url:
         raise ValueError("Keine URL eingetragen")
     per_watch = bool(st.get("per_watch")) or "{query}" in url
@@ -60,7 +60,7 @@ def run(ctx: RunContext, source: Source) -> list[Offer]:
 
 
 LIST_FIELDS = [
-    FieldSpec("url", "Seiten-URL", help="Angebotsseite oder Suche; {query} wird durch den Suchtext der Watchlist ersetzt"),
+    FieldSpec("url", "Seiten-URL", help="Angebotsseite oder Suche; {query} = Suchtext der Watchlist, {ort}/{plz} = deine Region"),
     FieldSpec("item_selector", "Selektor: ein Angebot", help="CSS-Selektor für jeden Angebots-Block, z. B. article.product"),
     FieldSpec("title_selector", "Selektor: Titel"),
     FieldSpec("price_selector", "Selektor: Preis"),

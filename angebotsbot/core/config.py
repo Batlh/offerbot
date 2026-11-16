@@ -25,6 +25,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "browser_mode": False,  # Playwright für JS-Seiten erlauben (muss installiert sein)
     "ocr": True,  # Texterkennung für Bild-Prospekte
     "close_to_tray": True,  # Fenster schließen = im Infobereich weiterlaufen
+    "region": {"ort": "Trier", "plz": "54290"},  # für kaufDA & Platzhalter {ort}/{plz} in Quellen-URLs
     "ai": {
         "mode": "aus",  # aus | claude | openai
         "claude_model": "claude-haiku-5-5",
@@ -33,6 +34,16 @@ DEFAULT_SETTINGS: dict[str, Any] = {
         "pages": "treffer",  # treffer = nur Seiten mit Watchlist-Treffern, alle = jede Seite
         "max_pages_per_run": 40,
     },
+}
+
+
+# www.aldi-sued.de blockt automatische Abrufe; prospekt.aldi-sued.de leitet direkt auf den aktuellen Prospekt um
+ALDI_SETTINGS = {
+    "retailer": "ALDI SÜD",
+    "start_url": "https://prospekt.aldi-sued.de/",
+    "follow_regex": "",
+    "pdf_regex": r"https://[^\"'\s<>]+?\.pdf[^\"'\s<>]*",
+    "max_pdfs": 1,
 }
 
 
@@ -57,13 +68,13 @@ def default_sources() -> list[Source]:
             "per_watch": True,
         }, False, "Deals"),
         # --- Prospekte ---
-        Source("ALDI SÜD Prospekte", "prospekt_links", {
-            "retailer": "ALDI SÜD",
-            "start_url": "https://www.aldi-sued.de/prospekte",
-            "follow_regex": r"https://prospekt\.aldi-sued\.de/kw\d+-\d+[a-z0-9-]*",
-            "pdf_regex": r"https://[^\"'\s<>]+?\.pdf[^\"'\s<>]*",
-            "max_pdfs": 3,
-        }, True, "Prospekte", 720),
+        Source("ALDI SÜD Prospekte", "prospekt_links", ALDI_SETTINGS, True, "Prospekte", 720),
+        Source("kaufDA – Angebote in deiner Region", "kaufda", {
+            "themen": "Black-Week, Black-Friday",
+            "ort": "",
+            "retailers": "",
+            "max_results": 40,
+        }, True, "Prospekte", 360),
         Source("Lidl Prospekte", "prospekt_schwarz", {
             "retailer": "Lidl",
             "start_url": "https://www.lidl.de/c/online-prospekte/s10005610",
@@ -103,6 +114,7 @@ class Config:
             if not self.path.exists():
                 self.watchlist = default_watchlist()
                 self.sources = default_sources()
+                self.settings["migrations"] = ["1.1-aldi", "1.1-kaufda"]
                 self.save()
                 return
             raw = json.loads(self.path.read_text(encoding="utf-8"))
@@ -115,6 +127,27 @@ class Config:
             self.settings = settings
             self.watchlist = [WatchItem.from_dict(d) for d in raw.get("watchlist", [])]
             self.sources = [Source.from_dict(d) for d in raw.get("sources", [])]
+            if self._migrate():
+                self.save()
+
+    def _migrate(self) -> bool:
+        """Ältere Konfigurationen auf den aktuellen Stand bringen (ohne eigene Änderungen zu verlieren)."""
+        done = set(self.settings.get("migrations", []))
+        changed = False
+        if "1.1-aldi" not in done:
+            for s in self.sources:
+                if s.type == "prospekt_links" and "www.aldi-sued.de/prospekte" in s.settings.get("start_url", ""):
+                    s.settings.update(ALDI_SETTINGS)
+            done.add("1.1-aldi")
+            changed = True
+        if "1.1-kaufda" not in done:
+            if not any(s.type == "kaufda" for s in self.sources):
+                self.sources += [s for s in default_sources() if s.type == "kaufda"]
+            done.add("1.1-kaufda")
+            changed = True
+        if changed:
+            self.settings["migrations"] = sorted(done)
+        return changed
 
     def save(self) -> None:
         with self._lock:
@@ -133,6 +166,9 @@ class Config:
 
     def watch(self, wid: str) -> WatchItem | None:
         return next((w for w in self.watchlist if w.id == wid), None)
+
+    def region(self) -> dict[str, str]:
+        return self.settings.get("region") or {}
 
     def ai(self) -> dict[str, Any]:
         return self.settings.get("ai", {})

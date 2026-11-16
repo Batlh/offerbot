@@ -5,6 +5,7 @@ Stichwort-Syntax (Groß/Klein egal, Umlaute tolerant):
   sn850x|"990 pro"   → eine der Alternativen (| trennt, Wortgruppen in Anführungszeichen)
   "2 tb"             → genaue Wortgruppe
   -gebraucht         → darf NICHT vorkommen
+Wörter ab 4 Buchstaben zählen auch mitten im Wort (butter → Markenbutter), kürzere nur am Wortanfang.
 """
 from __future__ import annotations
 
@@ -41,9 +42,10 @@ def parse_keywords(expr: str) -> tuple[list[list[str]], list[str]]:
 
 
 def _contains(hay: str, needle: str) -> bool:
-    if " " in needle or not needle.isalnum():
+    if " " in needle or not needle.isalnum() or len(needle) >= 4:
+        # ab 4 Zeichen überall im Wort suchen – deutsche Komposita: "butter" findet auch "Markenbutter"
         return needle in hay
-    # Wortanfang beachten, damit "pro" nicht in "produkt" ... trotzdem "2tb" in "2tb," finden
+    # kurze Wörter nur am Wortanfang, damit "pro" nicht in "Hapro" passt
     return re.search(r"(?<![a-z0-9])" + re.escape(needle), hay) is not None
 
 

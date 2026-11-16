@@ -41,7 +41,7 @@ Optional:
 | `ssd 2tb` | beide Wörter müssen vorkommen |
 | `sn850x\|"990 pro"` | eins von beiden (Wortgruppen in Anführungszeichen) |
 | `-gebraucht` | darf nicht vorkommen |
-| `butter` | passt auch auf Wortanfänge (Butterkeks) – mit `-keks` ausschließen |
+| `butter` | Wörter ab 4 Buchstaben passen auch mitten im Wort (Markenbutter, Butterkeks) – mit `-keks` ausschließen |
 
 Groß-/Kleinschreibung und Umlaute sind egal (`kuhlschrank` findet „Kühlschrank“).
 
@@ -50,10 +50,11 @@ Groß-/Kleinschreibung und Umlaute sind egal (`kuhlschrank` findet „Kühlschra
 | Quelle | Stand |
 |---|---|
 | mydealz Heiß / Neu / Gruppen / Gutscheine (RSS) | geprüft – Preis, Händler und Grad werden erkannt |
-| Geizhals-Suche je Watchlist-Eintrag | geprüft – speichert Bestpreis-Verlauf gegen Fake-Rabatte |
+| Geizhals-Suche je Watchlist-Eintrag | Geizhals blockt automatische Abrufe teilweise (HTTP 403) – dann Quelle ausschalten |
 | Produktseiten der Watchlist | erkennt den Preis bei den meisten Shops automatisch; Amazon blockt teils |
 | Shop-Seite / Shop-Suche (CSS-Selektoren) | für beliebige Shops selbst einrichten |
-| ALDI SÜD Prospekte (PDF) | geprüft |
+| ALDI SÜD Prospekte (PDF) | über prospekt.aldi-sued.de (die Hauptseite blockt automatische Abrufe) |
+| kaufDA – Angebote in deiner Region | Prospekt-Angebote aller Händler im eingestellten Ort, je Watchlist-Eintrag + Themen wie Black-Week |
 | Lidl Prospekte (PDF + Produkte mit Preis) | geprüft; für Lidl Luxemburg Übersichtsseite von lidl.lu eintragen |
 | Direkter PDF-Link | für Händler mit fester PDF-Adresse ({kw} = Kalenderwoche) |
 | marktguru-Suche (Beta, Browser-Modus) | Lebensmittel-Angebote vieler Händler je Watchlist-Eintrag |
@@ -63,6 +64,13 @@ dort das Prospekt-PDF herunterladen und über **„PDF importieren …“** einl
 
 Bitte die Intervalle nicht zu klein machen (Standard 30 Minuten, Prospekte 12 Stunden) – das schont die Seiten
 und verhindert Sperren.
+
+## Region
+
+Unter *Einstellungen → Region* Ort und PLZ eintragen (Standard: Trier, 54290). kaufDA zeigt dann die Angebote
+der Händler in deinem Ort. In eigenen Quellen-URLs kannst du `{ort}` und `{plz}` als Platzhalter verwenden.
+kaufDA hat nur für bekannte Begriffe eigene Seiten – am besten einfache Suchtexte wie „Butter“, „Kaffeebohnen“,
+„Fernseher“. Welche Begriffe keine Seite haben, steht im Protokoll.
 
 ## KI (umschaltbar)
 
