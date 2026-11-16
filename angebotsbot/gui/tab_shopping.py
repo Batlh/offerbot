@@ -131,8 +131,9 @@ class ShoppingTab(QWidget):
         if not text:
             QMessageBox.information(self, "Einkaufszettel", "Der Einkaufszettel ist leer.")
             return
-        if self.main.config.settings.get("phone", {}).get("mode", "aus") == "aus":
-            QMessageBox.information(self, "Einkaufszettel", "Bitte zuerst unter Einstellungen → Handy ntfy oder Telegram einrichten.")
+        from ..core.notify import has_any
+        if not has_any(self.main.config.settings):
+            QMessageBox.information(self, "Einkaufszettel", "Bitte zuerst unter Einstellungen → Handy ntfy, Telegram oder Discord einrichten.")
             return
         from ..core import notify
         t = Task(lambda *_: notify.send(self.main.config.settings, "Einkaufszettel", text), self)

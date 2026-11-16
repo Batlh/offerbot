@@ -538,3 +538,20 @@ def test_telegram_bot_commands(env, monkeypatch):
     assert notify.telegram_recipients(cfg.settings["phone"]) == ["7"]
     say(7, "/stop")
     assert cfg.settings["phone"]["telegram_chat_id"] == ""
+
+
+def test_discord_webhook(monkeypatch):
+    from angebotsbot.core import notify
+    sent = []
+
+    class R:
+        status_code = 204
+        text = ""
+
+    monkeypatch.setattr(notify.requests, "post", lambda url, **k: (sent.append((url, k["json"])), R())[1])
+    st = {"phone": {"mode": "aus", "discord_on": True, "discord_webhook": "https://discord.com/api/webhooks/1/abc"}}
+    assert notify.has_any(st)
+    notify.send(st, "2 neue Treffer", "x" * 2500)
+    assert len(sent) == 2 and sent[0][0].endswith("/abc") and sent[0][1]["content"].startswith("**2 neue Treffer**")
+    st["phone"]["discord_on"] = False
+    assert not notify.has_any(st)

@@ -227,7 +227,8 @@ class MainWindow(QMainWindow):
         if res.needs_check:
             self.offer_checks(res.needs_check)
         ph = self.config.settings.get("phone") or {}
-        if n and ph.get("mode", "aus") != "aus" and ph.get("only_new_matches", True):
+        from ..core.notify import has_any
+        if n and has_any(self.config.settings) and ph.get("only_new_matches", True):
             lines = [f"{w.name}: {o.title[:70]} – {fmt_price(o.price)}" + (f" ({o.merchant})" if o.merchant else "")
                      for o, w in res.new_matches[:8]]
             more = f"\n… und {n - 8} weitere" if n > 8 else ""
@@ -451,7 +452,8 @@ class MainWindow(QMainWindow):
         self.db.meta_set("weekly_last", f"{y}-{kw}")
         self.log(f"Wochenbericht erstellt: {paths[0]}")
         wr = self.config.settings.get("weekly_report") or {}
-        if wr.get("send_phone") and (self.config.settings.get("phone") or {}).get("mode", "aus") != "aus":
+        from ..core.notify import has_any
+        if wr.get("send_phone") and has_any(self.config.settings):
             self._send_phone(f"Wochenbericht KW {kw}", summary)
         if manual:
             open_local(paths[0])

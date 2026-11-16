@@ -54,6 +54,8 @@ Rechtsklick → **Preisverlauf** zeigt dazu ein Diagramm.
 
 - *Einstellungen → Handy-Benachrichtigung*: **ntfy** (App „ntfy“ installieren, Thema abonnieren – ohne Konto)
   oder **Telegram** (eigener Bot) – oder beides. Neue Treffer, Wochenbericht und Einkaufszettel kommen dann aufs Handy.
+- **Discord:** In deinem Discord-Server unter Kanal-Einstellungen → Integrationen → Webhooks einen Webhook anlegen,
+  die Adresse im AngebotsBot bei „Zusätzlich: Discord“ eintragen – Treffer kommen dann als Nachricht in den Kanal.
 - **Eigener Telegram-Bot mit Befehlen:** Jeder legt bei @BotFather seinen eigenen Bot an und trägt den Token ein.
   Dann „Mit Telegram verbinden“ klicken und dem eigenen Bot `/start` schicken – er antwortet nur dir:
   `/treffer`, `/zettel`, `/suche butter`, `/bericht`, `/pruefen`, `/stop`. Läuft, solange der AngebotsBot läuft.

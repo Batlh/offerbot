@@ -15,7 +15,7 @@ from pathlib import Path
 from .paths import data_dir
 
 LOG = logging.getLogger("angebotsbot")
-SECRET_KEYS = ("ntfy_topic", "telegram_chat_id", "api_key", "token", "password")
+SECRET_KEYS = ("ntfy_topic", "telegram_chat_id", "api_key", "token", "password", "webhook")
 
 
 def log_dir() -> Path:

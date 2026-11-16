@@ -3,6 +3,11 @@
 Alle Versionen des AngebotsBot (offerbot). Die neueste steht oben.
 Jede Release auf GitHub enthält die fertige Windows-Version als ZIP (`AngebotsBot-windows.zip`).
 
+## 1.8.0 – 2026-11-16
+### Neu
+- Discord: Benachrichtigungen per Webhook in einen eigenen Discord-Kanal (neue Treffer, Wochenbericht,
+  Einkaufszettel) – zusätzlich zu ntfy/Telegram einschaltbar
+
 ## 1.7.1 – 2026-11-16
 ### Geändert
 - Telegram: jeder richtet seinen eigenen Bot ein, der nur seinem Besitzer antwortet – Zugangscode und

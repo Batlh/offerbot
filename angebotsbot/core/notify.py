@@ -42,9 +42,15 @@ def has_telegram_token() -> bool:
 def send(settings: dict, title: str, message: str, click_url: str = "") -> None:
     cfg = settings.get("phone") or {}
     mode = cfg.get("mode", "aus")
-    if mode == "aus":
+    discord = bool(cfg.get("discord_on") and cfg.get("discord_webhook"))
+    if mode == "aus" and not discord:
         return
     errors = []
+    if discord:
+        try:
+            _send_discord(cfg, title, message, click_url)
+        except NotifyError as e:
+            errors.append(str(e))
     if mode in ("ntfy", "beide"):
         try:
             _send_ntfy(cfg, title, message, click_url)
@@ -55,7 +61,7 @@ def send(settings: dict, title: str, message: str, click_url: str = "") -> None:
             _send_telegram(cfg, title, message)
         except NotifyError as e:
             errors.append(str(e))
-    if mode not in ("ntfy", "telegram", "beide"):
+    if mode not in ("aus", "ntfy", "telegram", "beide"):
         raise NotifyError(f"Unbekannte Art: {mode}")
     if errors:
         raise NotifyError("; ".join(errors))
@@ -83,6 +89,20 @@ def _send_ntfy(cfg: dict, title: str, message: str, click_url: str) -> None:
     if click_url.startswith("http"):
         body["click"] = click_url
     _post(server, json=body)  # JSON-Variante: Umlaute im Titel kein Problem
+
+
+def _send_discord(cfg: dict, title: str, message: str, click_url: str = "") -> None:
+    url = (cfg.get("discord_webhook") or "").strip()
+    if not url.startswith("https://"):
+        raise NotifyError("Discord: Webhook-Adresse fehlt oder ist ungültig")
+    text = f"**{title}**\n{message}" + (f"\n{click_url}" if click_url.startswith("http") else "")
+    for i in range(0, len(text), 1900):  # Discord-Grenze 2000 Zeichen
+        _post(url, json={"content": text[i:i + 1900], "username": "AngebotsBot"})
+
+
+def has_any(settings: dict) -> bool:
+    cfg = settings.get("phone") or {}
+    return cfg.get("mode", "aus") != "aus" or bool(cfg.get("discord_on") and cfg.get("discord_webhook"))
 
 
 def telegram_recipients(cfg: dict) -> list[str]:

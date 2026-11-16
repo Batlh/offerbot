@@ -134,6 +134,12 @@ class SettingsTab(QWidget):
         self.tg_state = QLabel()
         prow.addWidget(self.b_pair)
         prow.addWidget(self.tg_state, 1)
+        drow = QHBoxLayout()
+        self.dc_on = QCheckBox("Discord")
+        self.dc_hook = QLineEdit(echoMode=QLineEdit.Password,
+                                 placeholderText="Webhook-Adresse (Kanal-Einstellungen → Integrationen → Webhooks)")
+        drow.addWidget(self.dc_on)
+        drow.addWidget(self.dc_hook, 1)
         self.ph_only_new = QCheckBox("Bei neuen Treffern senden")
         self.b_ph_test = QPushButton("Testnachricht senden")
         self.b_ph_test.clicked.connect(self.test_phone)
@@ -143,6 +149,7 @@ class SettingsTab(QWidget):
         f6.addRow("Telegram-Token", self.tg_token)
         f6.addRow("Telegram-Chat-ID", self.tg_chat)
         f6.addRow("", self.tg_bot)
+        f6.addRow("Zusätzlich", drow)
         f6.addRow("", prow)
         f6.addRow("", self.ph_only_new)
         f6.addRow("", self.b_ph_test)
@@ -239,6 +246,8 @@ class SettingsTab(QWidget):
         self.tg_token.setText("●●●●●●●● (gespeichert)" if notify.has_telegram_token() else "")
         self.ph_only_new.setChecked(bool(ph.get("only_new_matches", True)))
         self.tg_bot.setChecked(bool(ph.get("telegram_bot")))
+        self.dc_on.setChecked(bool(ph.get("discord_on")))
+        self.dc_hook.setText(ph.get("discord_webhook", ""))
         self.tg_state.setText("verbunden ✔" if ph.get("telegram_chat_id") else "noch nicht verbunden")
         wr = s.get("weekly_report") or {}
         self.wr_on.setChecked(bool(wr.get("enabled")))
@@ -292,7 +301,8 @@ class SettingsTab(QWidget):
                  phone={**(s.get("phone") or {}),
                         "mode": self.ph_mode.currentText(), "ntfy_server": self.ph_server.text().strip() or "https://ntfy.sh",
                         "ntfy_topic": self.ph_topic.text().strip(), "telegram_chat_id": self.tg_chat.text().strip(),
-                        "only_new_matches": self.ph_only_new.isChecked(), "telegram_bot": self.tg_bot.isChecked()},
+                        "only_new_matches": self.ph_only_new.isChecked(), "telegram_bot": self.tg_bot.isChecked(),
+                        "discord_on": self.dc_on.isChecked(), "discord_webhook": self.dc_hook.text().strip()},
                  weekly_report={"enabled": self.wr_on.isChecked(), "weekday": self.wr_day.currentIndex(),
                                 "hour": self.wr_hour.value(), "send_phone": self.wr_phone.isChecked()},
                  debug=self.debug.isChecked(),
