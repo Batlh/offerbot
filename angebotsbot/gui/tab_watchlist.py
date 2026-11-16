@@ -4,7 +4,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel,
                                QLineEdit, QListWidget, QListWidgetItem, QMenu, QMessageBox, QPlainTextEdit, QPushButton,
-                               QSplitter, QVBoxLayout, QWidget)
+                               QSplitter, QVBoxLayout, QWidget, QDialog, QDialogButtonBox)
 
 from ..core.matcher import text_matches
 from ..core.models import WatchItem
@@ -49,7 +49,7 @@ class WatchTab(QWidget):
         self.category.addItems(["Allgemein", "Technik", "Gaming", "Haushalt", "Lebensmittel", "Drogerie", "Kleidung"])
         self.max_price = QDoubleSpinBox(maximum=100000, decimals=2, suffix=" €", specialValueText="egal")
         self.min_discount = QDoubleSpinBox(maximum=100, decimals=0, suffix=" %", specialValueText="egal")
-        self.in_deals = QCheckBox("Deals & Shops (Blackweek, mydealz, Geizhals …)")
+        self.in_deals = QCheckBox("Deals && Shops (Blackweek, mydealz, Produkt-Links …)")
         self.in_prospekte = QCheckBox("Prospekte (Wochenangebote, kaufDA, ALDI, Lidl …)")
         self.search_online = QCheckBox("Gezielt suchen lassen (kaufDA, Geizhals, Shop-Suchen)")
         self.enabled = QCheckBox("Aktiv")
@@ -87,13 +87,20 @@ class WatchTab(QWidget):
         bl2 = QHBoxLayout()
         self.b_save = QPushButton("Speichern")
         self.b_save.setDefault(True)
-        self.b_rematch = QPushButton("Gespeicherte Angebote neu abgleichen")
-        self.b_browse = QPushButton("Im Browser ansehen ▾")
+        self.b_rematch = QPushButton("Neu abgleichen")
+        self.b_rematch.setToolTip("Alle bereits gesammelten Angebote erneut mit der Watchlist abgleichen")
+        self.b_amazon = QPushButton("Amazon prüfen")
+        self.b_amazon.setToolTip("Sucht diesen Eintrag einmalig bei Amazon und zeigt die Preise hier an")
+        self.b_amazon.clicked.connect(self.amazon_check)
+        self.b_browse = QPushButton("Im Browser ansehen")
         self.b_browse.setToolTip("Öffnet die Suche nach diesem Eintrag in deinem Browser (Seiten in den Einstellungen änderbar)")
         self.browse_menu = QMenu(self)
         self.browse_menu.aboutToShow.connect(self.fill_browse_menu)
         self.b_browse.setMenu(self.browse_menu)
+        for b in (self.b_amazon, self.b_browse, self.b_rematch):
+            b.setMinimumWidth(b.sizeHint().width() + 16)
         bl2.addStretch()
+        bl2.addWidget(self.b_amazon)
         bl2.addWidget(self.b_browse)
         bl2.addWidget(self.b_rematch)
         bl2.addWidget(self.b_save)
@@ -143,7 +150,7 @@ class WatchTab(QWidget):
         self.current = w
         for wd in (self.name, self.keywords, self.query, self.category, self.max_price, self.min_discount,
                    self.in_deals, self.in_prospekte, self.search_online, self.enabled, self.urls, self.notes, self.b_save,
-                   self.b_browse):
+                   self.b_browse, self.b_amazon):
             wd.setEnabled(w is not None)
         if not w:
             return
@@ -241,6 +248,36 @@ class WatchTab(QWidget):
             if u.startswith("http"):
                 self.browse_menu.addAction("Produkt-Link: " + u[:60], lambda u=u: webbrowser.open(u))
 
+    def amazon_check(self):
+        from .common import Task, error_box
+        w = self.current
+        if not w:
+            return
+        self.save()
+        self.b_amazon.setEnabled(False)
+        self.b_amazon.setText("Suche bei Amazon …")
+        t = Task(lambda log, prog, cancelled: self.main.engine.quick_check_amazon(w, log), self)
+        t.log.connect(self.main.log)
+
+        def reset():
+            self.b_amazon.setEnabled(True)
+            self.b_amazon.setText("Amazon prüfen")
+
+        def done(res):
+            reset()
+            offers, hits = res
+            self.main.matches_tab.refresh()
+            AmazonDialog(self, w, offers, hits).exec()
+
+        def fail(msg):
+            reset()
+            error_box(self, "Amazon", msg)
+
+        t.finished_ok.connect(done)
+        t.failed.connect(fail)
+        self._at = t
+        t.start()
+
     def try_keywords(self):
         t = self.test_text.text().strip()
         if not t:
@@ -250,3 +287,32 @@ class WatchTab(QWidget):
         ok = text_matches(t, expr)
         self.test_res.setText("✔ passt" if ok else "✘ passt nicht")
         self.test_res.setStyleSheet("color:#1a7f37;font-weight:bold" if ok else "color:#b42318;font-weight:bold")
+
+
+class AmazonDialog(QDialog):
+    def __init__(self, parent, w, offers, hits):
+        from .common import Col, make_table, open_url, price, selected_rows
+        super().__init__(parent)
+        self.setWindowTitle(f"Amazon: {w.search_text}")
+        self.resize(1100, 600)
+        lay = QVBoxLayout(self)
+        n = len(hits)
+        limit = f" und Höchstpreis {w.max_price:.2f} €" if w.max_price else ""
+        head = QLabel(f"<b>{len(offers)} Ergebnisse</b> – {n} passen zu „{w.name}“ (Stichwörter{limit}). "
+                      "Passende stehen jetzt auch unter „Treffer“. Doppelklick öffnet das Produkt.")
+        head.setWordWrap(True)
+        lay.addWidget(head)
+        cols = [Col("", lambda o: "✔" if o.uid in hits else "", width=28),
+                Col("Produkt", lambda o: o.title, width=520),
+                Col("Preis", lambda o: price(o.price), sort=lambda o: o.price, align_right=True, width=85),
+                Col("Vorher", lambda o: price(o.old_price), sort=lambda o: o.old_price, align_right=True, width=85),
+                Col("Grundpreis", lambda o: o.unit_price, width=100),
+                Col("Hinweis", lambda o: o.info)]
+        view, model, _ = make_table(cols, self)
+        model.bold = lambda o: o.uid in hits
+        model.set_rows(sorted(offers, key=lambda o: (o.uid not in hits, o.price is None, o.price or 0)))
+        view.doubleClicked.connect(lambda _: [open_url(o.url) for o in selected_rows(view)[:3]])
+        lay.addWidget(view)
+        bb = QDialogButtonBox(QDialogButtonBox.Close)
+        bb.rejected.connect(self.reject)
+        lay.addWidget(bb)

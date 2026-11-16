@@ -260,3 +260,35 @@ def test_browser_mode_windows(tmp_path, monkeypatch):
     html = Fetcher({"browser_mode": True, "browser_channel": channel, "timeout_s": 30, "request_delay_s": 0}) \
         .render("data:text/html,<h1>hallo</h1>", wait_ms=100)
     assert "hallo" in html
+
+
+def test_amazon_quick_check(env, monkeypatch):
+    cfg, db, eng = env
+    from angebotsbot.core import engine as engmod
+    from angebotsbot.core.models import WatchItem
+    from angebotsbot.core.net import FetchError
+    from angebotsbot.core.ondemand import parse_amazon
+    html = (FIX / "amazon_search.html").read_text(encoding="utf-8")
+    offers = parse_amazon(html)
+    assert [o.url[-10:] for o in offers] == ["B01AJ2ENGK", "B07287W616", "B001MZWR76"]  # ohne Gesponsert
+    a, b, c = offers
+    assert a.price == 49.0 and a.info.startswith("Amazons Tipp")
+    assert b.price == 19.59 and b.old_price == 25.8 and b.unit_price.startswith("4,80") and b.unit_price.endswith("/kg")
+    assert "Früher Black Friday" in b.info and "UVP" in b.info and "Coupon" in b.info
+    assert c.price == 29.99 and "andere Anbieter" in c.info
+    assert len(parse_amazon(html, include_sponsored=True)) == 4
+    with pytest.raises(FetchError):
+        parse_amazon("<html><form action='/errors/validateCaptcha'></form></html>")
+
+    class AFetcher(FakeFetcher):
+        def get(self, url, as_json=False, binary=False):
+            assert url == "https://www.amazon.de/s?k=cats+best"
+            return html
+
+    monkeypatch.setattr(engmod, "Fetcher", lambda s: AFetcher({}))
+    w = WatchItem("Katzenstreu", keywords="cat best|cat's best -sheba", query="cats best", max_price=30)
+    cfg.watchlist = [w]
+    res, hits = eng.quick_check_amazon(w, log=lambda m: None)
+    assert len(res) == 3 and len(hits) == 2
+    assert {o.price for o in res if o.uid in hits} == {19.59, 29.99}
+    assert len(db.matches()) == 2

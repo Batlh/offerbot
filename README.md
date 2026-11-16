@@ -25,7 +25,10 @@ Optional:
 
 1. **Watchlist**: Was du suchst. Name, Stichwörter, Höchstpreis, optional Mindest-Rabatt.
    Häkchen, ob gegen *Deals & Shops* und/oder *Prospekte* geprüft wird.
-   Der Knopf **„Im Browser ansehen ▾“** öffnet die Suche nach dem Eintrag bei idealo, Geizhals, mydealz, Amazon
+   Der Knopf **„Amazon prüfen“** sucht den Eintrag einmalig bei Amazon und zeigt Preise, Streichpreise,
+   Grundpreise und Hinweise wie „Früher Black Friday“ direkt im Bot an (gesponserte Ergebnisse ausgeblendet).
+   Das passiert nur auf Knopfdruck, nie automatisch. Zeigt Amazon ein Captcha, bricht der Bot ab.
+   Der Knopf **„Im Browser ansehen“** öffnet die Suche nach dem Eintrag bei idealo, Geizhals, mydealz, Amazon
    oder kaufDA in deinem normalen Browser (Liste unter *Einstellungen* änderbar).
    Bei *Produkt-Links* kannst du konkrete Produktseiten eintragen – deren Preis wird bei jedem Lauf gelesen
    und als eigener Preisverlauf gespeichert (Rechtsklick auf einen Treffer → „Preisverlauf anzeigen“).

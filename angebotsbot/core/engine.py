@@ -172,6 +172,33 @@ class Engine:
             shutil.copy2(path, target)
         return self.db.add_prospekt(retailer, title, "datei:" + str(target), str(target), valid_from, valid_to)
 
+    # ------------------------------------------------------------------ Sofort-Suche (nur auf Knopfdruck)
+    def quick_check_amazon(self, w: WatchItem, log: Callable[[str], None] = print) -> tuple[list[Offer], set[str]]:
+        """Sucht den Watchlist-Eintrag einmalig bei Amazon. → (Ergebnisse, uids der Treffer)"""
+        from .matcher import offer_matches
+        from .ondemand import amazon_search
+        s = self.config.settings
+        use_browser = bool(s.get("browser_mode") and s.get("browser_channel"))
+        log(f"Amazon-Suche nach '{w.search_text}'" + (" (Browser-Modus)" if use_browser else ""))
+        offers = amazon_search(Fetcher(s), w.search_text, use_browser)
+        hits: set[str] = set()
+        for o in offers:
+            o.watch_id = w.id
+            o.category = w.category
+            if o.price is not None:
+                self.db.add_price(o.url, o.price, "Amazon")
+        self.db.upsert_offers(offers)
+        mt = float(s.get("min_temperature") or 0)
+        import copy
+        wq = copy.copy(w)
+        wq.in_deals = True  # ausdrücklich angefragt → unabhängig vom Haken "Deals & Shops" abgleichen
+        for o in offers:
+            if offer_matches(o, wq, mt):
+                hits.add(o.uid)
+                self.db.add_match(o.uid, w.id, w.name)
+        log(f"Amazon: {len(offers)} Ergebnisse, {len(hits)} passen zum Eintrag")
+        return offers, hits
+
     # ------------------------------------------------------------------ Testen
     def test_source(self, src: Source) -> tuple[list[Offer], list[str], str]:
         logs: list[str] = []
