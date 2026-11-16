@@ -507,22 +507,26 @@ def test_telegram_bot_commands(env, monkeypatch):
     from angebotsbot.core import notify
     from angebotsbot.core.models import Offer, WatchItem
     from angebotsbot.core.telegram_bot import TelegramBot
-    cfg.settings["phone"].update(telegram_code="abc123", telegram_subscribers=[])
+    cfg.settings["phone"]["telegram_chat_id"] = ""
     cfg.watchlist = [WatchItem("Butter", keywords="butter", in_prospekte=True)]
     o = Offer("s", "S", "Kerrygold Butter 250 g", price=1.69, merchant="Lidl", kind="prospekt", valid_to="21.11.")
     db.upsert_offers([o])
     eng.match([o])
-    started = []
+    started, paired = [], []
     bot = TelegramBot("TOKEN", cfg, db, {"pruefen": lambda: started.append(1)})
+    bot.on_paired = paired.append
     out = []
     monkeypatch.setattr(bot, "send", lambda cid, text: out.append((cid, text)))
     say = lambda cid, t: bot.handle({"message": {"chat": {"id": cid, "first_name": "Bat"}, "text": t}})
-    say(7, "/treffer")
-    assert "Nicht angemeldet" in out[-1][1]
-    say(7, "/start falsch")
-    assert "Zugangscode" in out[-1][1] and not cfg.settings["phone"]["telegram_subscribers"]
-    say(7, "/start abc123")
-    assert "Willkommen, Bat" in out[-1][1] and cfg.settings["phone"]["telegram_subscribers"][0]["id"] == 7
+    say(7, "/start")
+    assert "Mit Telegram verbinden" in out[-1][1] and cfg.settings["phone"]["telegram_chat_id"] == ""
+    bot.start_pairing(60)
+    say(7, "/start")
+    assert "Verbunden" in out[-1][1] and cfg.settings["phone"]["telegram_chat_id"] == "7" and paired == ["Bat"]
+    n = len(out)
+    say(99, "/treffer")  # Fremde werden ignoriert
+    say(99, "/start")
+    assert len(out) == n + 1 and "anderen Konto" in out[-1][1]
     say(7, "/treffer")
     assert "1,69 €" in out[-1][1] and "6,76 €/kg" in out[-1][1] and "bis 21.11." in out[-1][1]
     say(7, "/suche kerrygold")
@@ -533,4 +537,4 @@ def test_telegram_bot_commands(env, monkeypatch):
     assert "Butter: 1,69 € bei Lidl" in out[-1][1]
     assert notify.telegram_recipients(cfg.settings["phone"]) == ["7"]
     say(7, "/stop")
-    assert cfg.settings["phone"]["telegram_subscribers"] == []
+    assert cfg.settings["phone"]["telegram_chat_id"] == ""

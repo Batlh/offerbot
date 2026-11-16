@@ -1,6 +1,7 @@
 """Tab 'Einstellungen'."""
 from __future__ import annotations
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
                                QLabel, QLineEdit, QPlainTextEdit, QPushButton, QScrollArea, QSpinBox, QVBoxLayout, QWidget)
 
@@ -125,21 +126,14 @@ class SettingsTab(QWidget):
         trow.addWidget(self.ph_topic)
         trow.addWidget(b_topic)
         self.tg_token = QLineEdit(echoMode=QLineEdit.Password, placeholderText="Bot-Token von @BotFather (Windows-Tresor)")
-        self.tg_chat = QLineEdit(placeholderText="eigene Chat-ID (optional – Anmeldung geht auch per /start <Code>)")
+        self.tg_chat = QLineEdit(placeholderText="wird beim Verbinden automatisch eingetragen")
         self.tg_bot = QCheckBox("Telegram-Bot antwortet auf Befehle (/treffer, /zettel, /suche, /pruefen …)")
-        crow = QHBoxLayout()
-        self.tg_code = QLineEdit(placeholderText="Zugangscode für /start <Code>")
-        b_code = QPushButton("Zufällig")
-        b_code.clicked.connect(lambda: self.tg_code.setText(__import__("secrets").token_hex(3)))
-        crow.addWidget(self.tg_code)
-        crow.addWidget(b_code)
-        srow = QHBoxLayout()
-        self.tg_subs = QLabel()
-        self.tg_subs.setWordWrap(True)
-        b_unsub = QPushButton("Alle abmelden")
-        b_unsub.clicked.connect(self.unsubscribe_all)
-        srow.addWidget(self.tg_subs, 1)
-        srow.addWidget(b_unsub)
+        prow = QHBoxLayout()
+        self.b_pair = QPushButton("Mit Telegram verbinden")
+        self.b_pair.clicked.connect(self.pair_telegram)
+        self.tg_state = QLabel()
+        prow.addWidget(self.b_pair)
+        prow.addWidget(self.tg_state, 1)
         self.ph_only_new = QCheckBox("Bei neuen Treffern senden")
         self.b_ph_test = QPushButton("Testnachricht senden")
         self.b_ph_test.clicked.connect(self.test_phone)
@@ -149,15 +143,13 @@ class SettingsTab(QWidget):
         f6.addRow("Telegram-Token", self.tg_token)
         f6.addRow("Telegram-Chat-ID", self.tg_chat)
         f6.addRow("", self.tg_bot)
-        f6.addRow("Zugangscode", crow)
-        f6.addRow("Angemeldet", srow)
+        f6.addRow("", prow)
         f6.addRow("", self.ph_only_new)
         f6.addRow("", self.b_ph_test)
         nh = QLabel("ntfy: App „ntfy“ aufs Handy, dort dasselbe Thema abonnieren – fertig, kein Konto nötig. "
                     "Den Themennamen wie ein Passwort behandeln (jeder mit dem Namen kann mitlesen).\n"
-                    "Telegram: bei @BotFather einen Bot anlegen, Token hier eintragen, Bot-Befehle anhaken, Zugangscode "
-                    "festlegen. Wer mitmachen will, schreibt dem Bot /start <Code>. Der Bot antwortet, solange der "
-                    "AngebotsBot läuft (kein Server nötig).")
+                    "Telegram: bei @BotFather deinen eigenen Bot anlegen, Token hier eintragen, „Mit Telegram verbinden“ "
+                    "klicken und deinem Bot /start schicken. Er antwortet nur dir – solange der AngebotsBot läuft.")
         nh.setWordWrap(True)
         nh.setStyleSheet("color:#555")
         f6.addRow(nh)
@@ -247,9 +239,7 @@ class SettingsTab(QWidget):
         self.tg_token.setText("●●●●●●●● (gespeichert)" if notify.has_telegram_token() else "")
         self.ph_only_new.setChecked(bool(ph.get("only_new_matches", True)))
         self.tg_bot.setChecked(bool(ph.get("telegram_bot")))
-        self.tg_code.setText(ph.get("telegram_code", ""))
-        subs = ph.get("telegram_subscribers") or []
-        self.tg_subs.setText(", ".join(f"{x.get('name')}" for x in subs) or "noch niemand")
+        self.tg_state.setText("verbunden ✔" if ph.get("telegram_chat_id") else "noch nicht verbunden")
         wr = s.get("weekly_report") or {}
         self.wr_on.setChecked(bool(wr.get("enabled")))
         self.wr_day.setCurrentIndex(int(wr.get("weekday", 0)))
@@ -302,8 +292,7 @@ class SettingsTab(QWidget):
                  phone={**(s.get("phone") or {}),
                         "mode": self.ph_mode.currentText(), "ntfy_server": self.ph_server.text().strip() or "https://ntfy.sh",
                         "ntfy_topic": self.ph_topic.text().strip(), "telegram_chat_id": self.tg_chat.text().strip(),
-                        "only_new_matches": self.ph_only_new.isChecked(), "telegram_bot": self.tg_bot.isChecked(),
-                        "telegram_code": self.tg_code.text().strip()},
+                        "only_new_matches": self.ph_only_new.isChecked(), "telegram_bot": self.tg_bot.isChecked()},
                  weekly_report={"enabled": self.wr_on.isChecked(), "weekday": self.wr_day.currentIndex(),
                                 "hour": self.wr_hour.value(), "send_phone": self.wr_phone.isChecked()},
                  debug=self.debug.isChecked(),
@@ -334,11 +323,17 @@ class SettingsTab(QWidget):
         self.main.schedule_changed()
         self.main.restart_telegram_bot()
 
-    def unsubscribe_all(self):
-        self.main.config.settings.setdefault("phone", {})["telegram_subscribers"] = []
-        self.main.config.save()
-        self.load()
-        self.main.status("Alle Telegram-Anmeldungen entfernt")
+    def pair_telegram(self):
+        self.tg_bot.setChecked(True)
+        self.save()  # startet den Bot mit dem eingetragenen Token
+        bot = self.main.tg_bot
+        if not bot:
+            error_box(self, "Telegram", "Bitte zuerst den Bot-Token von @BotFather eintragen.")
+            return
+        bot.on_paired = lambda name: QTimer.singleShot(0, self, lambda: (self.load(), self.main.status(
+            f"Telegram verbunden mit {name} ✔")))
+        bot.start_pairing(180)
+        self.tg_state.setText("Jetzt deinem Bot in Telegram /start schicken (3 Minuten Zeit) …")
 
     def random_topic(self):
         import secrets

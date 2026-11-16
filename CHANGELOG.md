@@ -3,6 +3,13 @@
 Alle Versionen des AngebotsBot (offerbot). Die neueste steht oben.
 Jede Release auf GitHub enthält die fertige Windows-Version als ZIP (`AngebotsBot-windows.zip`).
 
+## 1.7.1 – 2026-11-16
+### Geändert
+- Telegram: jeder richtet seinen eigenen Bot ein, der nur seinem Besitzer antwortet – Zugangscode und
+  Abonnentenliste entfallen. Verbinden per Knopf „Mit Telegram verbinden“ und /start an den eigenen Bot.
+### Planung
+- Android: Begleit-App (A) ist geplant, eigenständige App (B) als mögliche Option vorgemerkt (docs/ANDROID.md)
+
 ## 1.7.0 – 2026-11-16
 ### Neu
 - Eingebauter Telegram-Bot: antwortet auf /treffer, /zettel, /suche <Begriff>, /bericht, /pruefen, /stop

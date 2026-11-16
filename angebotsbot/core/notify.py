@@ -86,12 +86,8 @@ def _send_ntfy(cfg: dict, title: str, message: str, click_url: str) -> None:
 
 
 def telegram_recipients(cfg: dict) -> list[str]:
-    ids = [str(cfg.get("telegram_chat_id") or "").strip()] + [str(s["id"]) for s in cfg.get("telegram_subscribers", [])]
-    out = []
-    for i in ids:
-        if i and i not in out:
-            out.append(i)
-    return out
+    cid = str(cfg.get("telegram_chat_id") or "").strip()
+    return [cid] if cid else []
 
 
 def _send_telegram(cfg: dict, title: str, message: str) -> None:
@@ -100,7 +96,7 @@ def _send_telegram(cfg: dict, title: str, message: str) -> None:
     if not token:
         raise NotifyError("Telegram: Bot-Token fehlt")
     if not chats:
-        raise NotifyError("Telegram: noch niemand angemeldet (/start <Code> an den Bot schicken)")
+        raise NotifyError("Telegram: noch nicht verbunden (Einstellungen → „Mit Telegram verbinden“)")
     for chat in chats:
         _post(f"https://api.telegram.org/bot{token}/sendMessage",
               json={"chat_id": chat, "text": f"{title}\n\n{message}"[:4000], "disable_web_page_preview": True})

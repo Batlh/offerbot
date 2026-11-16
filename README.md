@@ -54,9 +54,9 @@ Rechtsklick → **Preisverlauf** zeigt dazu ein Diagramm.
 
 - *Einstellungen → Handy-Benachrichtigung*: **ntfy** (App „ntfy“ installieren, Thema abonnieren – ohne Konto)
   oder **Telegram** (eigener Bot) – oder beides. Neue Treffer, Wochenbericht und Einkaufszettel kommen dann aufs Handy.
-- **Telegram-Bot mit Befehlen:** Bot bei @BotFather anlegen, Token eintragen, „Telegram-Bot antwortet auf Befehle“
-  anhaken und einen Zugangscode festlegen. Wer mitmachen will, schreibt dem Bot `/start <Code>` und kann dann
-  `/treffer`, `/zettel`, `/suche butter`, `/bericht` und `/pruefen` nutzen. Läuft, solange der AngebotsBot läuft.
+- **Eigener Telegram-Bot mit Befehlen:** Jeder legt bei @BotFather seinen eigenen Bot an und trägt den Token ein.
+  Dann „Mit Telegram verbinden“ klicken und dem eigenen Bot `/start` schicken – er antwortet nur dir:
+  `/treffer`, `/zettel`, `/suche butter`, `/bericht`, `/pruefen`, `/stop`. Läuft, solange der AngebotsBot läuft.
 - *Einstellungen → Wochenbericht*: z. B. jeden Montag ab 7 Uhr je Watchlist-Eintrag die drei günstigsten aktuellen
   Angebote und welcher Laden sich lohnt – als HTML, Markdown und CSV im Export-Ordner unter `Wochenberichte`.
   Oder jederzeit über den Knopf „Wochenbericht“ bei den Treffern.

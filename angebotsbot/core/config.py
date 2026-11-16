@@ -29,7 +29,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "region": {"ort": "Trier", "plz": "54290", "ort_fr": "Thionville"},
     "debug": False,  # ausführliches Debug-Log (data/logs)
     "phone": {"mode": "aus", "ntfy_server": "https://ntfy.sh", "ntfy_topic": "", "telegram_chat_id": "",
-              "only_new_matches": True, "telegram_bot": False, "telegram_code": "", "telegram_subscribers": []},
+              "only_new_matches": True, "telegram_bot": False},
     "weekly_report": {"enabled": False, "weekday": 0, "hour": 7, "send_phone": True},
     # Knopf "Im Browser ansehen": öffnet diese Seiten in deinem Browser ({query} = Suchtext, {ort}/{plz} = Region)
     "browse_sites": [

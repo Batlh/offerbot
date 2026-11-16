@@ -1,6 +1,6 @@
 # Android-Version – Plan und Checkpoint
 
-Stand: 16.11.2026, Version 1.6.2 · Status: **vorbereitet, Entscheidung offen**
+Stand: 16.11.2026, Version 1.7.1 · Status: **A geplant**, B als Option vorgemerkt
 
 ## Ausgangslage
 
@@ -19,8 +19,16 @@ Stand: 16.11.2026, Version 1.6.2 · Status: **vorbereitet, Entscheidung offen**
 | Texterkennung/Prospekte | läuft weiter auf dem PC | nur ohne OCR oder mit Google ML Kit |
 | Unterwegs | Treffer kommen per ntfy; Daten vom letzten Abgleich (Sync im WLAN, optional über Cloud) | voll unabhängig |
 
-**Empfehlung: A.** Ein Code für die Logik, das Handy bekommt eine schnelle, saubere Oberfläche.
-B lohnt sich erst, wenn der PC nicht mehr laufen soll.
+**Entscheidung: A wird gebaut.** Ein Code für die Logik, das Handy bekommt eine schnelle, saubere Oberfläche.
+**B ist als Option vorgemerkt („eventuell geplant“)** – für alle, die den Bot ohne laufenden PC nutzen wollen.
+Damit B später möglich bleibt, bekommt die Begleit-App eine Schicht „Datenquelle“: heute der PC-Bot, später
+optional eigene Quellen direkt auf dem Handy (mydealz, kaufDA, Bonial, Lidl – alles ohne Texterkennung machbar).
+
+## B – eventuell geplant (Option)
+- Eigene Quellen in Dart: mydealz-RSS, kaufDA/Bonial (__NEXT_DATA__), Lidl-JSON, Abgleich, Grundpreise
+- Keine Texterkennung von PDF-Prospekten (höchstens Google ML Kit), kein Browser-Modus
+- Benachrichtigungen direkt auf dem Handy statt über ntfy/Telegram
+- Umsetzung erst, wenn A steht und Bedarf da ist
 
 ## Plan für A
 
@@ -53,7 +61,7 @@ B lohnt sich erst, wenn der PC nicht mehr laufen soll.
 - [x] Plan und Schnittstellen-Entwurf (diese Datei)
 
 ### Offen (in dieser Reihenfolge)
-1. [ ] Entscheidung A oder B (Nutzer)
+1. [x] Entscheidung: A, B als Option vorgemerkt
 2. [ ] `core/api.py` + Einstellungen (Schalter, Port, Schlüssel, QR-Code) + Tests
 3. [ ] Flutter-Projekt `android/` anlegen: Einrichtung per QR, Treffer-Liste
 4. [ ] Einkaufszettel + Watchlist in der App

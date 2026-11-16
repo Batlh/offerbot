@@ -1,12 +1,14 @@
 """Eingebauter Telegram-Bot: antwortet auf Befehle, solange der AngebotsBot läuft.
 
 Kein Server nötig – der Bot fragt Telegram regelmäßig nach neuen Nachrichten (Long Polling).
-Wer mitmachen will, schreibt dem Bot `/start <Zugangscode>`; ohne Code gibt es keine Daten.
+Jeder richtet seinen EIGENEN Bot ein (@BotFather) – der Bot antwortet nur seinem Besitzer.
+Verbunden wird per Knopf „Mit Telegram verbinden“: danach /start an den eigenen Bot schicken.
 """
 from __future__ import annotations
 
 import logging
 import threading
+import time
 from typing import Callable
 
 import requests
@@ -22,7 +24,7 @@ HELP = ("AngebotsBot – Befehle:\n"
         "/suche <Begriff> – in allen gesammelten Angeboten suchen\n"
         "/bericht – Kurzfassung Wochenbericht\n"
         "/pruefen – jetzt alle Quellen prüfen\n"
-        "/stop – keine Nachrichten mehr\n"
+        "/stop – Verbindung trennen\n"
         "/hilfe – diese Liste")
 
 
@@ -34,6 +36,11 @@ class TelegramBot(threading.Thread):
         self._stop = threading.Event()
         self.offset = 0
         self.api = f"https://api.telegram.org/bot{token}"
+        self.pair_until = 0.0  # Zeitfenster für „Mit Telegram verbinden“
+        self.on_paired: Callable[[str], None] | None = None
+
+    def start_pairing(self, seconds: int = 180) -> None:
+        self.pair_until = time.time() + seconds
 
     # ------------------------------------------------------------------ Grundlagen
     def stop(self):
@@ -69,16 +76,15 @@ class TelegramBot(threading.Thread):
                 self._stop.wait(15)
         LOG.info("Telegram-Bot gestoppt")
 
-    # ------------------------------------------------------------------ Abonnenten
+    # ------------------------------------------------------------------ Besitzer
     def _phone(self) -> dict:
         return self.config.settings.setdefault("phone", {})
 
-    def subscribers(self) -> list[dict]:
-        return self._phone().setdefault("telegram_subscribers", [])
+    def owner(self) -> str:
+        return str(self._phone().get("telegram_chat_id") or "").strip()
 
-    def is_member(self, chat_id) -> bool:
-        return any(str(s["id"]) == str(chat_id) for s in self.subscribers()) or \
-            str(self._phone().get("telegram_chat_id", "")) == str(chat_id)
+    def is_owner(self, chat_id) -> bool:
+        return bool(self.owner()) and self.owner() == str(chat_id)
 
     # ------------------------------------------------------------------ Befehle
     def handle(self, upd: dict) -> None:
@@ -93,25 +99,27 @@ class TelegramBot(threading.Thread):
         LOG.info("Telegram %s (%s): %s", name, cid, cmd)
 
         if cmd == "/start":
-            code = (self._phone().get("telegram_code") or "").strip()
-            if self.is_member(cid):
-                self.send(cid, "Du bist schon angemeldet.\n\n" + HELP)
-            elif code and arg.strip() == code:
-                self.subscribers().append({"id": cid, "name": name})
+            if self.is_owner(cid):
+                self.send(cid, "Verbunden ✔\n\n" + HELP)
+            elif time.time() < self.pair_until:
+                self._phone()["telegram_chat_id"] = str(cid)
                 self.config.save()
-                self.send(cid, f"Willkommen, {name}! Du bekommst jetzt neue Treffer.\n\n" + HELP)
+                self.pair_until = 0
+                self.send(cid, f"Verbunden ✔ Hallo {name}, ab jetzt bekommst du hier deine Treffer.\n\n" + HELP)
+                if self.on_paired:
+                    self.on_paired(name)
             else:
-                self.send(cid, "Bitte mit Zugangscode anmelden: /start <Code>\n"
-                               "(Den Code findest du im AngebotsBot unter Einstellungen → Handy-Benachrichtigung.)")
+                self.send(cid, "Dieser Bot ist mit niemandem bzw. einem anderen Konto verbunden. Zum Verbinden im "
+                               "AngebotsBot unter Einstellungen → Handy auf „Mit Telegram verbinden“ klicken und "
+                               "dann hier /start schicken.")
             return
-        if not self.is_member(cid):
-            self.send(cid, "Nicht angemeldet. Bitte zuerst: /start <Zugangscode>")
+        if not self.is_owner(cid):
+            LOG.info("Telegram: fremde Anfrage von %s ignoriert", cid)
             return
         if cmd == "/stop":
-            subs = self.subscribers()
-            subs[:] = [s for s in subs if str(s["id"]) != str(cid)]
+            self._phone()["telegram_chat_id"] = ""
             self.config.save()
-            self.send(cid, "Abgemeldet – du bekommst keine Nachrichten mehr. Wieder anmelden mit /start <Code>.")
+            self.send(cid, "Verbindung getrennt – keine Nachrichten mehr. Neu verbinden über den AngebotsBot.")
         elif cmd == "/treffer":
             rows = [r for r in self.db.matches() if not r["seen"]][:15] or self.db.matches()[:10]
             self.send(cid, self.format_rows(rows, "Treffer") if rows else "Keine Treffer.")
