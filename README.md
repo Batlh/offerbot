@@ -6,7 +6,9 @@ gegen deine Watchlist – mit Oberfläche, PDF-Viewer, Preisvergleich und Window
 ## Fertige Version (ohne Python)
 
 Unter **[Releases](https://github.com/Batlh/offerbot/releases)** liegt `AngebotsBot-windows.zip`: entpacken, `AngebotsBot.exe` starten – fertig.
-Jede neue Version entsteht automatisch über GitHub Actions, sobald ein Versions-Tag (`v1.0.1` …) gepusht wird.
+Jede Änderung wird automatisch über GitHub Actions getestet, gebaut und als neue Release veröffentlicht –
+mit den Neuerungen aus dem [CHANGELOG](CHANGELOG.md) und der Liste aller Änderungen seit der letzten Release.
+Update: neue ZIP über die alte Version entpacken, den Ordner `data` behalten.
 Windows-SmartScreen warnt beim ersten Start, weil die EXE nicht signiert ist: „Weitere Informationen“ → „Trotzdem ausführen“.
 
 ## Start aus dem Quellcode (einmalig)
