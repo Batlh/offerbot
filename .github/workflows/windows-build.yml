@@ -5,6 +5,7 @@ name: Windows-Build
 on:
   push:
     branches: [main]
+    paths-ignore: ["docs/**", "**.md"]   # reine Doku-Änderungen erzeugen keinen Build/keine Release
   pull_request:
   workflow_dispatch:
 
