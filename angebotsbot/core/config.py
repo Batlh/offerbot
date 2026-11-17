@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 import threading
 from dataclasses import asdict
 from pathlib import Path
@@ -10,6 +11,10 @@ from typing import Any
 
 from .models import Source, WatchItem
 from .paths import data_dir
+
+# Früher mitgelieferte Kennungen (bis 1.10.0: Chrome/131.0) – werden beim Start auf die aktuelle gehoben.
+OLD_DEFAULT_UA = re.compile(r"^Mozilla/5\.0 \(Windows NT 10\.0; Win64; x64\) AppleWebKit/537\.36 \(KHTML, like Gecko\) "
+                            r"Chrome/1[0-4]\d\.0 Safari/537\.36$")
 
 DEFAULT_SETTINGS: dict[str, Any] = {
     "interval_min": 30,  # automatischer Lauf alle X Minuten (0 = aus)
@@ -21,7 +26,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     "export_on_run": False,
     "request_delay_s": 1.5,  # Pause zwischen Anfragen an dieselbe Seite
     "timeout_s": 20,
-    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36",
     "browser_mode": False,  # echter Browser für JS-Seiten (richtet sich beim Anhaken selbst ein)
     "browser_channel": "",  # msedge oder chromium – wird bei der Einrichtung gesetzt
     "ocr": True,  # Texterkennung für Bild-Prospekte
@@ -196,7 +201,8 @@ class Config:
             if not self.path.exists():
                 self.watchlist = default_watchlist()
                 self.sources = default_sources()
-                self.settings["migrations"] = ["1.1-aldi", "1.1-kaufda", "1.4-lu-fr", "1.5-metro-lu", "1.6-kaufland"]
+                self.settings["migrations"] = ["1.1-aldi", "1.1-kaufda", "1.4-lu-fr", "1.5-metro-lu", "1.6-kaufland",
+                                               "1.10-ua"]
                 self.save()
                 return
             raw = json.loads(self.path.read_text(encoding="utf-8"))
@@ -244,6 +250,12 @@ class Config:
             if not any(s.name == "Kaufland Prospekte" for s in self.sources):
                 self.sources.append(kaufland_source())
             done.add("1.6-kaufland")
+            changed = True
+        if "1.10-ua" not in done:
+            # Alte mitgelieferte Browser-Kennung (Chrome 131) auf die aktuelle bringen – eigene Einträge bleiben
+            if OLD_DEFAULT_UA.match(self.settings.get("user_agent") or ""):
+                self.settings["user_agent"] = DEFAULT_SETTINGS["user_agent"]
+            done.add("1.10-ua")
             changed = True
         if changed:
             self.settings["migrations"] = sorted(done)

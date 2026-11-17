@@ -3,6 +3,11 @@
 Alle Versionen des AngebotsBot (offerbot). Die neueste steht oben.
 Jede Release auf GitHub enthält die fertige Windows-Version als ZIP (`AngebotsBot-windows.zip`).
 
+## 1.10.1 – 2026-11-17
+### Behoben
+- Browser-Kennung (User-Agent) war veraltet (Chrome 131 von 2024) → jetzt Chrome 157. Bestehende Einstellungen
+  mit der alten mitgelieferten Kennung werden beim Start automatisch umgestellt, eigene Einträge bleiben.
+
 ## 1.10.0 – 2026-11-17
 ### Neu
 - **Handy-App als Einkaufsliste**: Die Liste liegt jetzt auf dem Handy und funktioniert komplett ohne PC und WLAN.

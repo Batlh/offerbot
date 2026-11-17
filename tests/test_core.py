@@ -666,3 +666,16 @@ def test_shopping_sync_and_migration(tmp_path):
     assert split_quantity("500 g Hackfleisch") == ("500 g", "Hackfleisch")
     assert split_quantity("Milch 2x") == ("2", "Milch")
     assert split_quantity("Cola 1,5") == ("", "Cola 1,5")
+
+
+def test_user_agent_migration(tmp_path, monkeypatch):
+    monkeypatch.setenv("ANGEBOTSBOT_DATA", str(tmp_path))
+    from angebotsbot.core.config import Config, DEFAULT_SETTINGS
+    old = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36"
+    (tmp_path / "config.json").write_text(json.dumps({"settings": {"user_agent": old, "migrations": []}}), encoding="utf-8")
+    cfg = Config(tmp_path / "config.json")
+    assert cfg.settings["user_agent"] == DEFAULT_SETTINGS["user_agent"]
+    assert "Chrome/157.0.0.0" in cfg.settings["user_agent"]
+    eigen = "MeinBrowser/1.0"
+    (tmp_path / "config.json").write_text(json.dumps({"settings": {"user_agent": eigen, "migrations": []}}), encoding="utf-8")
+    assert Config(tmp_path / "config.json").settings["user_agent"] == eigen
