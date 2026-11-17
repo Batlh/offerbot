@@ -586,7 +586,7 @@ def test_phone_api(env):
             call("/api/status", key="falsch")
         assert e.value.code == 401
         st = call("/api/status")
-        assert st["unread"] == 1 and st["api"] == 1
+        assert st["unread"] == 1 and st["api"] == 2
         items = call("/api/treffer")["items"]
         assert items[0]["title"].startswith("Kerrygold") and items[0]["base"] == "6,76 €/kg"
         uid = items[0]["uid"]
@@ -596,6 +596,16 @@ def test_phone_api(env):
         assert {x["title"] for x in z} == {"Kerrygold Butter 250 g", "Katzenstreu"}
         call(f"/api/zettel/{z[0]['id']}/erledigt", "POST", {"done": True})
         assert any(x["done"] for x in call("/api/zettel")["items"])
+        # Abgleich mit dem Handy: neuer Eintrag vom Handy + Haken auf einem PC-Eintrag (neuer als am PC)
+        pc = [x for x in call("/api/zettel")["items"] if x["title"] == "Katzenstreu"][0]
+        out = call("/api/zettel/sync", "POST", {"items": [
+            {"sid": "f:handy1", "title": "Milch", "qty": "2", "category": "Kühlregal", "liste": "Einkaufszettel",
+             "updated": "2099-01-01T00:00:00.000Z"},
+            dict(pc, done=True, updated="2099-01-01T00:00:00.000Z"),
+        ]})
+        by = {x["sid"]: x for x in out["items"]}
+        assert by["f:handy1"]["qty"] == "2" and by[pc["sid"]]["done"]
+        assert by["o:" + uid]["title"].startswith("Kerrygold")
         call("/api/treffer/gelesen", "POST", {"uids": [uid]})
         assert call("/api/status")["unread"] == 0
         saved = call("/api/watchlist", "POST", {"name": "Kaffee", "keywords": "kaffee", "max_price": 9.99})
@@ -608,3 +618,51 @@ def test_phone_api(env):
     finally:
         srv.stop()
     assert connect_uri(8765, "k").startswith("angebotsbot://verbinden?url=http://") and connect_uri(8765, "k").endswith("&key=k")
+
+
+def test_shopping_sync_and_migration(tmp_path):
+    import sqlite3
+    from angebotsbot.core.db import Database, shopping_item_text
+    from angebotsbot.core.units import split_quantity
+    # alte Datenbank (bis 1.9) mit einem Angebot und einem freien Eintrag
+    path = tmp_path / "alt.db"
+    c = sqlite3.connect(str(path))
+    c.executescript("""CREATE TABLE shopping (id INTEGER PRIMARY KEY AUTOINCREMENT, offer_uid TEXT UNIQUE, title TEXT,
+        price REAL, merchant TEXT, base TEXT, valid_to TEXT, url TEXT, added TEXT, done INTEGER DEFAULT 0);
+        INSERT INTO shopping (offer_uid, title, price, merchant) VALUES ('abc', 'Butter', 1.69, 'Lidl');
+        INSERT INTO shopping (offer_uid, title, merchant) VALUES ('frei:123', 'Katzenstreu', 'Sonstige');""")
+    c.commit()
+    c.close()
+    db = Database(path)
+    sids = {r["title"]: r["sid"] for r in db.shopping()}
+    assert sids == {"Butter": "o:abc", "Katzenstreu": "f:123"}
+
+    # Löschen am PC = Grabstein, das Handy sieht ihn beim Abgleich
+    kid = [r for r in db.shopping() if r["title"] == "Katzenstreu"][0]["id"]
+    db.shopping_delete(kid)
+    assert [r["title"] for r in db.shopping()] == ["Butter"]
+    out = {x["sid"]: x for x in db.shopping_sync([])}
+    assert out["f:123"]["deleted"]
+
+    # ältere Änderung vom Handy verliert, neuere gewinnt
+    db.shopping_sync([{"sid": "o:abc", "title": "Butter", "done": True, "updated": "2000-01-01T00:00:00Z"}])
+    assert not db.shopping()[0]["done"]
+    db.shopping_sync([{"sid": "o:abc", "title": "Butter", "done": True, "updated": "2099-01-01T00:00:00Z",
+                       "liste": "Metro"}])
+    assert db.shopping()[0]["done"] and db.shopping_lists() == ["Einkaufszettel", "Metro"]
+    assert db.shopping("Metro")[0]["title"] == "Butter"
+
+    # Angebot erneut hinzufügen → wieder offen statt doppelt
+    row = {"uid": "abc", "title": "Butter", "price": 1.69, "merchant": "Lidl", "valid_to": "", "url": ""}
+
+    class R(dict):
+        def keys(self):
+            return super().keys()
+    assert db.shopping_add(R(row)) and not db.shopping()[0]["done"]
+    assert len(db.shopping()) == 1
+
+    sid = db.shopping_add_free("Milch", qty="2")
+    assert sid.startswith("f:") and shopping_item_text([r for r in db.shopping() if r["sid"] == sid][0]) == "2× Milch"
+    assert split_quantity("500 g Hackfleisch") == ("500 g", "Hackfleisch")
+    assert split_quantity("Milch 2x") == ("2", "Milch")
+    assert split_quantity("Cola 1,5") == ("", "Cola 1,5")

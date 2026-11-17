@@ -5,8 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models.dart';
 
 /// Lokaler Speicher: Verbindung zum PC und letzter Stand für unterwegs (ohne WLAN).
+/// Der Einkaufszettel speichert sich selbst (data/zettel.dart).
 class Store {
-  static const _kUrl = 'pc_url', _kKey = 'pc_key', _kZettel = 'cache_zettel', _kTreffer = 'cache_treffer';
+  static const _kUrl = 'pc_url', _kKey = 'pc_key', _kTreffer = 'cache_treffer', _kOhnePc = 'ohne_pc';
 
   final SharedPreferences prefs;
   Store(this.prefs);
@@ -30,14 +31,10 @@ class Store {
     await prefs.remove(_kKey);
   }
 
-  List<ShopItem> get cachedZettel {
-    final raw = prefs.getString(_kZettel);
-    if (raw == null) return [];
-    return (jsonDecode(raw) as List).cast<Map<String, dynamic>>().map(ShopItem.fromJson).toList();
-  }
+  /// App wird ohne PC genutzt (nur Einkaufszettel).
+  bool get ohnePc => prefs.getBool(_kOhnePc) ?? false;
 
-  Future<void> cacheZettel(List<ShopItem> items) =>
-      prefs.setString(_kZettel, jsonEncode(items.map((e) => e.toJson()).toList()));
+  Future<void> setOhnePc(bool v) => prefs.setBool(_kOhnePc, v);
 
   List<Map<String, dynamic>> get cachedTrefferJson {
     final raw = prefs.getString(_kTreffer);

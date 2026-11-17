@@ -14,10 +14,9 @@ abstract class DataSource {
   Future<List<Offer>> treffer({bool nurUngelesen = false});
   Future<void> gelesen(List<String> uids, {bool alle = false});
   Future<List<Offer>> suche(String text);
-  Future<List<ShopItem>> zettel();
-  Future<void> zettelHinzufuegen({String? uid, String? titel});
-  Future<void> zettelErledigt(int id, bool erledigt);
-  Future<void> zettelLoeschen(int id);
+
+  /// Einkaufszettel abgleichen: schickt alle Einträge des Handys, bekommt den gemeinsamen Stand zurück.
+  Future<List<ShopItem>> zettelSync(List<ShopItem> items);
   Future<List<WatchEntry>> watchlist();
   Future<WatchEntry> watchSpeichern(WatchEntry w);
   Future<void> watchLoeschen(String id);
@@ -68,6 +67,9 @@ class PcSource implements DataSource {
       throw const SourceException('PC nicht erreichbar – läuft der AngebotsBot und bist du im selben WLAN?');
     }
     if (r.statusCode == 401) throw const SourceException('Schlüssel passt nicht – bitte neu verbinden (QR-Code)');
+    if (r.statusCode == 404) {
+      throw const SourceException('Der AngebotsBot am PC ist zu alt für diese App – bitte am PC aktualisieren');
+    }
     if (r.statusCode >= 400) {
       throw SourceException('Fehler vom PC (${r.statusCode})');
     }
@@ -95,19 +97,10 @@ class PcSource implements DataSource {
       _items(await _req('GET', '/api/suche', q: {'q': text})).map(Offer.fromJson).toList();
 
   @override
-  Future<List<ShopItem>> zettel() async =>
-      _items(await _req('GET', '/api/zettel')).map(ShopItem.fromJson).toList();
-
-  @override
-  Future<void> zettelHinzufuegen({String? uid, String? titel}) =>
-      _req('POST', '/api/zettel', body: uid != null ? {'uid': uid} : {'title': titel ?? ''});
-
-  @override
-  Future<void> zettelErledigt(int id, bool erledigt) =>
-      _req('POST', '/api/zettel/$id/erledigt', body: {'done': erledigt});
-
-  @override
-  Future<void> zettelLoeschen(int id) => _req('DELETE', '/api/zettel/$id');
+  Future<List<ShopItem>> zettelSync(List<ShopItem> items) async =>
+      _items(await _req('POST', '/api/zettel/sync', body: {'items': [for (final i in items) i.toJson()]}))
+          .map(ShopItem.fromJson)
+          .toList();
 
   @override
   Future<List<WatchEntry>> watchlist() async =>

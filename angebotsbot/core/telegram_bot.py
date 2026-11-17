@@ -165,6 +165,7 @@ class TelegramBot(threading.Thread):
         return "\n".join(out)
 
     def shopping_text(self) -> str:
+        from .db import shopping_item_text
         by: dict[str, list] = {}
         for r in self.db.shopping():
             if not r["done"]:
@@ -172,5 +173,6 @@ class TelegramBot(threading.Thread):
         lines = []
         for store, items in by.items():
             lines.append(f"🛒 {store}")
-            lines += [f"☐ {r['title']} – {fmt_price(r['price'])}" for r in items]
+            lines += [f"☐ {shopping_item_text(r)}" + (f" – {fmt_price(r['price'])}" if r["price"] else "")
+                      for r in items]
         return "\n".join(lines)

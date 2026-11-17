@@ -1,13 +1,15 @@
-"""Tab 'Einkaufszettel': nach Läden sortiert, abhaken, drucken/als HTML, aufs Handy schicken."""
+"""Tab 'Einkaufszettel': nach Läden sortiert, abhaken, eigene Artikel, mehrere Listen, drucken/als HTML,
+aufs Handy schicken. Wird mit der Handy-App abgeglichen (siehe core/db.py shopping_sync)."""
 from __future__ import annotations
 
 import html
 from datetime import datetime
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QHBoxLayout, QLabel, QMessageBox, QPushButton, QTreeWidget, QTreeWidgetItem,
-                               QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QComboBox, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMessageBox, QPushButton,
+                               QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
+from ..core.db import shopping_item_text as item_text
 from ..core.paths import data_dir
 from ..core.prices import fmt_price
 from .common import Task, error_box, open_local, open_url
@@ -18,6 +20,17 @@ class ShoppingTab(QWidget):
         super().__init__()
         self.main = main
         lay = QVBoxLayout(self)
+        top = QHBoxLayout()
+        top.addWidget(QLabel("Liste:"))
+        self.lists = QComboBox()
+        self.lists.setMinimumWidth(180)
+        top.addWidget(self.lists)
+        self.b_newlist = QPushButton("Neue Liste")
+        top.addWidget(self.b_newlist)
+        self.add_edit = QLineEdit()
+        self.add_edit.setPlaceholderText("Artikel hinzufügen, z. B. „2 Milch“ oder „500 g Hackfleisch“ – Enter")
+        top.addWidget(self.add_edit, 1)
+        lay.addLayout(top)
         bar = QHBoxLayout()
         self.b_html = QPushButton("Drucken / als Seite öffnen")
         self.b_phone = QPushButton("Aufs Handy schicken")
@@ -41,13 +54,51 @@ class ShoppingTab(QWidget):
         self.tree.itemDoubleClicked.connect(self.open_item)
         self.b_html.clicked.connect(self.to_html)
         self.b_phone.clicked.connect(self.to_phone)
-        self.b_done.clicked.connect(lambda: (self.main.db.x("DELETE FROM shopping WHERE done=1"), self.refresh()))
+        self.b_done.clicked.connect(lambda: (self.main.db.shopping_delete(only_done=True, liste=self.liste),
+                                             self.refresh()))
         self.b_clear.clicked.connect(self.clear)
+        self.b_newlist.clicked.connect(self.new_list)
+        self.add_edit.returnPressed.connect(self.add_free)
+        self.lists.currentIndexChanged.connect(lambda _i: self.refresh(keep_lists=True))
+        self._extra_lists: list[str] = []
 
-    def refresh(self):
+    @property
+    def liste(self) -> str:
+        return self.lists.currentText() or "Einkaufszettel"
+
+    def new_list(self):
+        name, ok = QInputDialog.getText(self, "Neue Liste", "Name der Liste (z. B. Metro, Drogerie):")
+        name = name.strip()
+        if ok and name:
+            if name not in self._extra_lists:
+                self._extra_lists.append(name)
+            self.refresh()
+            self.lists.setCurrentText(name)
+
+    def add_free(self):
+        text = self.add_edit.text().strip()
+        if not text:
+            return
+        from ..core.units import split_quantity
+        qty, title = split_quantity(text)
+        self.main.db.shopping_add_free(title, qty=qty, liste="" if self.liste == "Einkaufszettel" else self.liste)
+        self.add_edit.clear()
+        self.refresh()
+
+    def refresh(self, keep_lists: bool = False):
+        if not keep_lists:
+            cur = self.lists.currentText()
+            names = self.main.db.shopping_lists() + [n for n in self._extra_lists
+                                                     if n not in self.main.db.shopping_lists()]
+            self.lists.blockSignals(True)
+            self.lists.clear()
+            self.lists.addItems(names)
+            if cur in names:
+                self.lists.setCurrentText(cur)
+            self.lists.blockSignals(False)
         self.tree.blockSignals(True)
         self.tree.clear()
-        rows = self.main.db.shopping()
+        rows = self.main.db.shopping(self.liste)
         by_store: dict[str, list] = {}
         for r in rows:
             by_store.setdefault(r["merchant"] or "Sonstige", []).append(r)
@@ -62,7 +113,7 @@ class ShoppingTab(QWidget):
             top.setFont(0, f)
             top.setFont(1, f)
             for r in items:
-                it = QTreeWidgetItem([r["title"] or "", fmt_price(r["price"]), r["base"] or "", r["valid_to"] or ""])
+                it = QTreeWidgetItem([item_text(r), fmt_price(r["price"]), r["base"] or "", r["valid_to"] or ""])
                 it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
                 it.setCheckState(0, Qt.Checked if r["done"] else Qt.Unchecked)
                 it.setData(0, Qt.UserRole, r["id"])
@@ -79,7 +130,7 @@ class ShoppingTab(QWidget):
     def toggled(self, item, col):
         sid = item.data(0, Qt.UserRole)
         if sid is not None:
-            self.main.db.x("UPDATE shopping SET done=? WHERE id=?", (1 if item.checkState(0) == Qt.Checked else 0, sid))
+            self.main.db.shopping_update(sid, done=item.checkState(0) == Qt.Checked)
             self.refresh()
 
     def open_item(self, item, _col):
@@ -91,32 +142,32 @@ class ShoppingTab(QWidget):
             open_url(url)
 
     def clear(self):
-        if QMessageBox.question(self, "Einkaufszettel", "Ganzen Einkaufszettel leeren?") == QMessageBox.Yes:
-            self.main.db.x("DELETE FROM shopping")
+        if QMessageBox.question(self, "Einkaufszettel", f"Liste „{self.liste}“ ganz leeren?") == QMessageBox.Yes:
+            self.main.db.shopping_delete(liste=self.liste)
             self.refresh()
 
     def as_text(self) -> str:
         lines = []
         by_store: dict[str, list] = {}
-        for r in self.main.db.shopping():
+        for r in self.main.db.shopping(self.liste):
             if not r["done"]:
                 by_store.setdefault(r["merchant"] or "Sonstige", []).append(r)
         for store, items in by_store.items():
             lines.append(f"🛒 {store}")
-            lines += [f"☐ {r['title']} – {fmt_price(r['price'])}" for r in items]
+            lines += [f"☐ {item_text(r)}" + (f" – {fmt_price(r['price'])}" if r["price"] else "") for r in items]
             lines.append("")
         return "\n".join(lines).strip()
 
     def to_html(self):
         by_store: dict[str, list] = {}
-        for r in self.main.db.shopping():
+        for r in self.main.db.shopping(self.liste):
             if not r["done"]:
                 by_store.setdefault(r["merchant"] or "Sonstige", []).append(r)
-        parts = [f"<h1>Einkaufszettel</h1><p>{datetime.now():%d.%m.%Y}</p>"]
+        parts = [f"<h1>{html.escape(self.liste)}</h1><p>{datetime.now():%d.%m.%Y}</p>"]
         for store, items in by_store.items():
             total = sum(r["price"] or 0 for r in items)
             parts.append(f"<h2>{html.escape(store)} <small>({fmt_price(total)})</small></h2><ul>")
-            parts += [f"<li>☐ {html.escape(r['title'] or '')} – <b>{fmt_price(r['price'])}</b>"
+            parts += [f"<li>☐ {html.escape(item_text(r))} – <b>{fmt_price(r['price'])}</b>"
                       f"{' · ' + html.escape(r['base']) if r['base'] else ''}"
                       f"{' · bis ' + html.escape(r['valid_to']) if r['valid_to'] else ''}</li>" for r in items]
             parts.append("</ul>")

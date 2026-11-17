@@ -446,9 +446,10 @@ class MainWindow(QMainWindow):
                 continue
             if "base_price" not in r.keys():
                 r = self.db.q("SELECT * FROM offers WHERE uid=?", (r["uid"],))[0]
-            n += self.db.shopping_add(r)
+            liste = self.shopping_tab.liste
+            n += self.db.shopping_add(r, liste="" if liste == "Einkaufszettel" else liste)
         self.shopping_tab.refresh()
-        self.status(f"{n} Artikel auf den Einkaufszettel gesetzt" if n else "Schon auf dem Einkaufszettel")
+        self.status(f"{n} Artikel auf „{self.shopping_tab.liste}“ gesetzt" if n else "Schon auf dem Einkaufszettel")
 
     def _send_phone(self, title: str, text: str, url: str = ""):
         import threading

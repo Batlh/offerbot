@@ -17,11 +17,12 @@ from typing import Any, Callable
 from urllib.parse import parse_qs, urlparse
 
 from .. import __version__
+from .db import shopping_json
 from .models import WatchItem
 from .units import fmt_base
 
 LOG = logging.getLogger("angebotsbot.api")
-API_VERSION = 1
+API_VERSION = 2  # 2: Einkaufszettel-Abgleich (/api/zettel/sync)
 
 
 def new_key() -> str:
@@ -171,6 +172,7 @@ class ApiServer:
             (r"/api/suche", "GET", self.suche),
             (r"/api/zettel", "GET", self.zettel),
             (r"/api/zettel", "POST", self.zettel_add),
+            (r"/api/zettel/sync", "POST", self.zettel_sync),
             (r"/api/zettel/(\d+)/erledigt", "POST", self.zettel_done),
             (r"/api/zettel/(\d+)", "DELETE", self.zettel_delete),
             (r"/api/watchlist", "GET", self.watchlist),
@@ -210,9 +212,18 @@ class ApiServer:
         return {"items": [_offer_json(r) for r in rows]}
 
     def zettel(self, q, body):
-        return {"items": [{"id": r["id"], "title": r["title"], "price": r["price"], "merchant": r["merchant"],
-                           "base": r["base"] or "", "valid_to": r["valid_to"] or "", "url": r["url"] or "",
-                           "done": bool(r["done"])} for r in self.db.shopping()]}
+        return {"items": [shopping_json(r) for r in self.db.shopping()]}
+
+    def zettel_sync(self, q, body):
+        items = body.get("items") or []
+        if not isinstance(items, list):
+            return {"ok": False, "error": "items fehlt"}
+        before = self.db.q("SELECT COUNT(*) n, MAX(srv) m FROM shopping")[0]
+        out = self.db.shopping_sync([i for i in items if isinstance(i, dict)])
+        after = self.db.q("SELECT COUNT(*) n, MAX(srv) m FROM shopping")[0]
+        if tuple(before) != tuple(after):
+            self._changed()
+        return {"ok": True, "items": out}
 
     def zettel_add(self, q, body):
         uid = body.get("uid")
@@ -220,26 +231,24 @@ class ApiServer:
             rows = self.db.q("SELECT * FROM offers WHERE uid=?", (uid,))
             if not rows:
                 raise KeyError(uid)
-            added = self.db.shopping_add(rows[0])
+            added = self.db.shopping_add(rows[0], liste=body.get("liste") or "")
         else:  # freier Eintrag ohne Angebot
             title = (body.get("title") or "").strip()
             if not title:
                 return {"ok": False, "error": "Titel fehlt"}
-            self.db.x("INSERT INTO shopping (offer_uid, title, price, merchant, base, valid_to, url, added) "
-                      "VALUES (?,?,?,?,?,?,?,datetime('now'))",
-                      (f"frei:{secrets.token_hex(6)}", title, body.get("price"), body.get("merchant") or "Sonstige",
-                       "", "", ""))
+            self.db.shopping_add_free(title, body.get("merchant") or "", body.get("price"), body.get("qty") or "",
+                                      body.get("category") or "", body.get("liste") or "")
             added = True
         self._changed()
         return {"ok": True, "added": bool(added)}
 
     def zettel_done(self, sid, q, body):
-        self.db.x("UPDATE shopping SET done=? WHERE id=?", (1 if body.get("done", True) else 0, int(sid)))
+        self.db.shopping_update(int(sid), done=bool(body.get("done", True)))
         self._changed()
         return {"ok": True}
 
     def zettel_delete(self, sid, q, body):
-        self.db.x("DELETE FROM shopping WHERE id=?", (int(sid),))
+        self.db.shopping_delete(int(sid))
         self._changed()
         return {"ok": True}
 

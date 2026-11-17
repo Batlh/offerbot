@@ -8,7 +8,10 @@ import '../models.dart';
 /// oder Adresse und Schlüssel von Hand eintragen.
 class SetupPage extends StatefulWidget {
   final Future<void> Function(Connection) onConnected;
-  const SetupPage({super.key, required this.onConnected});
+
+  /// „Ohne PC nutzen“ – nur angeboten, solange die App noch nie ohne PC gestartet wurde.
+  final Future<void> Function()? onOhnePc;
+  const SetupPage({super.key, required this.onConnected, this.onOhnePc});
 
   @override
   State<SetupPage> createState() => _SetupPageState();
@@ -74,6 +77,18 @@ class _SetupPageState extends State<SetupPage> {
             onPressed: _busy ? null : () => _try(Connection(_url.text.trim(), _key.text.trim())),
             child: const Text('Verbinden'),
           ),
+          if (widget.onOhnePc != null) ...[
+            const SizedBox(height: 28),
+            const Divider(),
+            const SizedBox(height: 8),
+            const Text('Kein PC? Die App taugt auch allein als Einkaufsliste – verbinden geht später jederzeit.'),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _busy ? null : widget.onOhnePc,
+              icon: const Icon(Icons.checklist),
+              label: const Text('Ohne PC nutzen – nur Einkaufsliste'),
+            ),
+          ],
           if (_busy) const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator())),
           if (_error.isNotEmpty)
             Padding(

@@ -112,8 +112,18 @@ und verhindert Sperren.
    Windows fragt einmal, ob der AngebotsBot im Netzwerk erreichbar sein darf → „Private Netzwerke“ erlauben.
 2. Am Handy: `AngebotsBot.apk` aus der neuesten [Release](https://github.com/Batlh/offerbot/releases) installieren
    (einmalig „Installation aus unbekannten Quellen“ erlauben), App öffnen → **QR-Code scannen**.
-3. Fertig: Treffer, Einkaufszettel (auch offline), Watchlist, „Amazon prüfen“, Prospekte und „Jetzt prüfen“.
+3. Fertig: Treffer, Einkaufsliste, Watchlist, „Amazon prüfen“, Prospekte und „Jetzt prüfen“.
    Handy und PC müssen dafür im selben WLAN sein. Unterwegs kommen neue Treffer weiter per ntfy/Telegram/Discord.
+
+**Einkaufsliste – auch ohne PC:** Die Liste liegt auf dem Handy und geht ohne WLAN. Wer keinen PC verbinden will,
+tippt bei der Einrichtung auf „Ohne PC nutzen – nur Einkaufsliste“.
+- Unten eintippen, auch mit Menge: „2 Milch“, „500 g Hackfleisch“. Vorschläge kommen aus früheren Einkäufen.
+- Sortiert nach Kategorien (Obst & Gemüse, Brot, Kühlregal, …) oder nach Läden – Knopf oben rechts.
+- Antippen = abhaken, wischen = löschen (mit „Rückgängig“), lange drücken = bearbeiten (Menge, Kategorie, Laden,
+  Preis, Liste).
+- Mehrere Listen, teilen per WhatsApp oder als Text.
+- Mit PC: Treffer lassen sich per langem Druck auf die Liste setzen; Änderungen auf Handy und PC werden
+  automatisch abgeglichen, sobald das Handy im WLAN ist.
 
 ## Browser-Modus
 

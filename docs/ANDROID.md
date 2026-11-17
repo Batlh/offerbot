@@ -1,6 +1,6 @@
 # Android-Version – Plan und Checkpoint
 
-Stand: 16.11.2026, Version 1.9.0 · Status: **A umgesetzt (erste Version)**, B als Option vorgemerkt
+Stand: 17.11.2026, Version 1.10.0 · Status: **A umgesetzt**, Einkaufsliste auch ohne PC, B als Option vorgemerkt
 
 ## Ausgangslage
 
@@ -68,9 +68,15 @@ optional eigene Quellen direkt auf dem Handy (mydealz, kaufDA, Bonial, Lidl – 
 5. [x] Prospekt-Viewer in der App (Seitenbilder vom PC, Zoom)
 6. [x] APK-Build in GitHub Actions (analyze, Tests, feste Signatur), an die Release gehängt
 7. [ ] Test auf dem Handy im WLAN (Nutzer)
-8. [ ] Später: Offline-Treffer, Benachrichtigungen in der App, App-Symbol
+8. [x] Einkaufsliste eigenständig (1.10): liegt auf dem Handy, Abgleich mit dem PC (`/api/zettel/sync`, neuere
+   Änderung gewinnt, Löschen als Grabstein), Mengen, Kategorien, mehrere Listen, Teilen, Modus „ohne PC“
+9. [ ] Später: Offline-Treffer, Benachrichtigungen in der App, App-Symbol, gemeinsame Liste mit einer
+   zweiten Person (bräuchte einen Server oder den PC als Treffpunkt)
 
 ### Hinweise
 - Signatur: fester Schlüssel `app/ci/offerbot.keystore` (liegt offen im Repo, private App ohne Store), damit
   Updates über die installierte App funktionieren.
 - Datenquelle austauschbar: `app/lib/data/source.dart` (`DataSource`) – Grundlage für Option B.
+- Einkaufsliste: `app/lib/data/zettel.dart` (`ZettelRepo`) ↔ `angebotsbot/core/db.py` (`shopping_sync`).
+  Jeder Eintrag hat eine feste `sid` („o:<Angebot>“ oder „f:<Zufall>“) und `updated` (UTC); Grabsteine bleiben
+  60 Tage am PC und 30 Tage auf dem Handy.

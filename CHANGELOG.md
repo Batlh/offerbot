@@ -3,6 +3,23 @@
 Alle Versionen des AngebotsBot (offerbot). Die neueste steht oben.
 Jede Release auf GitHub enthält die fertige Windows-Version als ZIP (`AngebotsBot-windows.zip`).
 
+## 1.10.0 – 2026-11-17
+### Neu
+- **Handy-App als Einkaufsliste**: Die Liste liegt jetzt auf dem Handy und funktioniert komplett ohne PC und WLAN.
+  Ist ein PC verbunden, wird automatisch abgeglichen – Haken, neue und gelöschte Artikel gehen in beide Richtungen,
+  die neuere Änderung gewinnt.
+- Schnell eintragen unten in der Liste, mit Mengen: „2 Milch“, „500 g Hackfleisch“, „Milch 2x“
+- Vorschläge aus früher eingetragenen Artikeln; die App merkt sich Kategorie und Laden pro Artikel
+- Sortieren nach Kategorien (Weg durch den Supermarkt: Obst & Gemüse, Brot, Kühlregal, …) oder nach Läden
+- Antippen = abhaken (rutscht nach unten „Im Wagen“), wischen = löschen mit „Rückgängig“, lange drücken = bearbeiten
+- Mehrere Listen (z. B. Wocheneinkauf, Metro, Drogerie): anlegen, umbenennen, löschen, Artikel verschieben
+- Liste per WhatsApp teilen oder als Text kopieren
+- Einrichtung: „Ohne PC nutzen – nur Einkaufsliste“; verbinden geht später jederzeit über das Menü
+- PC: Einkaufszettel mit mehreren Listen, eigene Artikel per Eingabefeld (auch mit Menge), gleicher Abgleich
+### Geändert
+- Telegram /zettel und „Aufs Handy schicken“ zeigen Mengen; Preise nur, wenn bekannt
+- Handy-Schnittstelle Version 2 (`/api/zettel/sync`). Die neue App braucht den AngebotsBot ab 1.10 am PC.
+
 ## 1.9.0 – 2026-11-16
 ### Neu
 - **Android-App (Begleit-App)**: `AngebotsBot.apk` in jeder Release. Treffer (mit Grundpreis und Preis-Check),

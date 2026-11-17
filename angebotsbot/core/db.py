@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import sqlite3
 import threading
-from datetime import datetime, timedelta
+import secrets
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -46,6 +47,47 @@ CREATE TABLE IF NOT EXISTS prospekt_pages (
 );
 """
 
+# Spalten für den Abgleich des Einkaufszettels mit dem Handy:
+# sid = feste ID auf beiden Seiten („o:<angebot>“ oder „f:<zufall>“), updated = letzte Änderung (für
+# „neuere Änderung gewinnt“), srv = wann der PC die Änderung bekommen hat, deleted = gelöscht (Grabstein,
+# damit das Handy das Löschen mitbekommt).
+SHOP_COLS = (("sid", "TEXT"), ("updated", "TEXT"), ("srv", "TEXT"), ("deleted", "INTEGER DEFAULT 0"),
+             ("qty", "TEXT DEFAULT ''"), ("category", "TEXT DEFAULT ''"), ("liste", "TEXT DEFAULT ''"))
+SHOP_FIELDS = ("title", "qty", "category", "liste", "price", "merchant", "base", "valid_to", "url", "done", "deleted")
+DEFAULT_LIST = "Einkaufszettel"
+
+
+def sync_ts() -> str:
+    """Zeitstempel in UTC mit Millisekunden – wie ihn auch die App schreibt."""
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def parse_ts(s: str | None) -> datetime:
+    if not s:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    try:
+        d = datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    return d if d.tzinfo else d.astimezone(timezone.utc)
+
+
+def shopping_item_text(r) -> str:
+    """„2× Milch“ bzw. „500 g Hackfleisch“."""
+    qty = ((r["qty"] or "") if "qty" in r.keys() else "").strip()
+    if not qty:
+        return r["title"] or ""
+    return f"{qty}× {r['title']}" if qty.replace(",", "").isdigit() else f"{qty} {r['title']}"
+
+
+def shopping_json(r) -> dict[str, Any]:
+    """Ein Zettel-Eintrag so, wie ihn die Handy-App versteht."""
+    return {"id": r["id"], "sid": r["sid"], "title": r["title"] or "", "qty": r["qty"] or "",
+            "category": r["category"] or "", "liste": r["liste"] or DEFAULT_LIST, "price": r["price"],
+            "merchant": r["merchant"] or "Sonstige", "base": r["base"] or "", "valid_to": r["valid_to"] or "",
+            "url": r["url"] or "", "done": bool(r["done"]), "deleted": bool(r["deleted"]),
+            "updated": r["updated"] or ""}
+
 
 class Database:
     def __init__(self, path: Path | None = None):
@@ -66,7 +108,24 @@ class Database:
                     bp = base_price(r["price"], r["title"] or "", r["unit_price"] or "", r["info"] or "")
                     if bp:
                         self.conn.execute("UPDATE offers SET base_price=?, base_unit=? WHERE uid=?", (bp[0], bp[1], r["uid"]))
+            self._migrate_shopping()
             self.conn.commit()
+
+    def _migrate_shopping(self) -> None:
+        """Einkaufszettel für den Abgleich mit dem Handy erweitern (ab 1.10)."""
+        cols = {r[1] for r in self.conn.execute("PRAGMA table_info(shopping)")}
+        new = False
+        for col, typ in SHOP_COLS:
+            if col not in cols:
+                self.conn.execute(f"ALTER TABLE shopping ADD COLUMN {col} {typ}")
+                new = True
+        if new or self.conn.execute("SELECT 1 FROM shopping WHERE sid IS NULL LIMIT 1").fetchone():
+            for r in self.conn.execute("SELECT id, offer_uid, added FROM shopping WHERE sid IS NULL").fetchall():
+                ou = r["offer_uid"] or ""
+                sid = ("f:" + ou[5:]) if ou.startswith("frei:") else ("o:" + ou if ou else f"f:pc{r['id']}")
+                ts = sync_ts()
+                self.conn.execute("UPDATE shopping SET sid=?, updated=?, srv=? WHERE id=?", (sid, ts, ts, r["id"]))
+        self.conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_shopping_sid ON shopping(sid)")
 
     def q(self, sql: str, args: Iterable[Any] = ()) -> list[sqlite3.Row]:
         with self._lock:
@@ -138,6 +197,7 @@ class Database:
     def cleanup(self, keep_days: int) -> None:
         cutoff = (datetime.now() - timedelta(days=keep_days)).isoformat(timespec="seconds")
         self.x("DELETE FROM offers WHERE last_seen < ? AND uid NOT IN (SELECT offer_uid FROM matches)", (cutoff,))
+        self.shopping_purge()
 
     # ---------- Preisverlauf ----------
     def add_price(self, key: str, price: float, merchant: str = "") -> None:
@@ -179,20 +239,113 @@ class Database:
         return [(r["ts"], r["price"], r["merchant"] or "") for r in rows]
 
     # ---------- Einkaufszettel ----------
-    def shopping_add(self, row) -> bool:
+    # Gelöschte Einträge bleiben als „Grabstein“ (deleted=1) stehen, damit das Handy das Löschen beim
+    # Abgleich mitbekommt; cleanup() räumt sie nach 60 Tagen weg.
+    def shopping_add(self, row, liste: str = "") -> bool:
+        """Angebot auf den Zettel. Schon vorhanden und erledigt/gelöscht → wieder offen."""
         from .units import fmt_base
+        sid = "o:" + row["uid"]
+        ts = sync_ts()
         with self._lock:
-            cur = self.conn.execute(
-                "INSERT OR IGNORE INTO shopping (offer_uid, title, price, merchant, base, valid_to, url, added) "
-                "VALUES (?,?,?,?,?,?,?,?)",
-                (row["uid"], row["title"], row["price"], row["merchant"] or "Sonstige",
-                 fmt_base(row["base_price"], row["base_unit"]) if "base_price" in row.keys() else "",
-                 row["valid_to"] or "", row["url"] or "", now_iso()))
+            old = self.conn.execute("SELECT id, done, deleted FROM shopping WHERE sid=?", (sid,)).fetchone()
+            if old:
+                if not old["done"] and not old["deleted"]:
+                    return False
+                self.conn.execute("UPDATE shopping SET done=0, deleted=0, updated=?, srv=? WHERE id=?",
+                                  (ts, ts, old["id"]))
+            else:
+                self.conn.execute(
+                    "INSERT INTO shopping (offer_uid, title, price, merchant, base, valid_to, url, added, sid, "
+                    "updated, srv, liste) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                    (row["uid"], row["title"], row["price"], row["merchant"] or "Sonstige",
+                     fmt_base(row["base_price"], row["base_unit"]) if "base_price" in row.keys() else "",
+                     row["valid_to"] or "", row["url"] or "", now_iso(), sid, ts, ts, liste))
             self.conn.commit()
-            return cur.rowcount > 0
+            return True
 
-    def shopping(self) -> list[sqlite3.Row]:
-        return self.q("SELECT * FROM shopping ORDER BY merchant, done, title")
+    def shopping_add_free(self, title: str, merchant: str = "", price: float | None = None, qty: str = "",
+                          category: str = "", liste: str = "") -> str:
+        """Eigener Eintrag ohne Angebot (z. B. „Milch“). Gibt die sid zurück."""
+        sid = "f:" + secrets.token_hex(8)
+        ts = sync_ts()
+        self.x("INSERT INTO shopping (offer_uid, title, price, merchant, base, valid_to, url, added, sid, updated, "
+               "srv, qty, category, liste) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+               ("frei:" + sid[2:], title.strip(), price, merchant or "Sonstige", "", "", "", now_iso(), sid, ts, ts,
+                qty, category, liste))
+        return sid
+
+    def shopping(self, liste: str | None = None) -> list[sqlite3.Row]:
+        """Offene und erledigte Einträge (ohne gelöschte), optional nur eine Liste."""
+        rows = self.q("SELECT * FROM shopping WHERE COALESCE(deleted,0)=0 ORDER BY merchant, done, title")
+        if liste is not None:
+            rows = [r for r in rows if (r["liste"] or DEFAULT_LIST) == liste]
+        return rows
+
+    def shopping_lists(self) -> list[str]:
+        names = {(r["liste"] or DEFAULT_LIST) for r in self.shopping()}
+        return [DEFAULT_LIST] + sorted(n for n in names if n != DEFAULT_LIST)
+
+    def shopping_update(self, item_id: int, **fields) -> None:
+        fields = {k: v for k, v in fields.items() if k in SHOP_FIELDS}
+        if "done" in fields:
+            fields["done"] = 1 if fields["done"] else 0
+        if "deleted" in fields:
+            fields["deleted"] = 1 if fields["deleted"] else 0
+        ts = sync_ts()
+        sets = ", ".join(f"{k}=?" for k in fields)
+        self.x(f"UPDATE shopping SET {sets}{', ' if sets else ''}updated=?, srv=? WHERE id=?",
+               (*fields.values(), ts, ts, item_id))
+
+    def shopping_delete(self, item_id: int | None = None, only_done: bool = False, liste: str | None = None) -> int:
+        """Einen Eintrag, alle erledigten oder alle (einer Liste) löschen."""
+        rows = [r for r in self.shopping(liste) if (item_id is None or r["id"] == item_id)
+                and (not only_done or r["done"])]
+        for r in rows:
+            self.shopping_update(r["id"], deleted=True)
+        return len(rows)
+
+    def shopping_sync(self, items: list[dict]) -> list[dict]:
+        """Abgleich mit dem Handy: pro Eintrag gewinnt die neuere Änderung. Gibt den ganzen Zettel zurück
+        (mit Grabsteinen), damit das Handy denselben Stand hat."""
+        now = sync_ts()
+        with self._lock:
+            for it in items or []:
+                sid = str(it.get("sid") or "").strip()
+                if not sid or len(sid) > 300:
+                    continue
+                upd = str(it.get("updated") or "")
+                vals = {
+                    "title": str(it.get("title") or "")[:300], "qty": str(it.get("qty") or "")[:40],
+                    "category": str(it.get("category") or "")[:60], "liste": str(it.get("liste") or "")[:60],
+                    "price": it.get("price") if isinstance(it.get("price"), (int, float)) else None,
+                    "merchant": str(it.get("merchant") or "")[:80] or "Sonstige",
+                    "base": str(it.get("base") or "")[:40], "valid_to": str(it.get("valid_to") or "")[:20],
+                    "url": str(it.get("url") or "")[:1000],
+                    "done": 1 if it.get("done") else 0, "deleted": 1 if it.get("deleted") else 0,
+                }
+                if vals["liste"] == DEFAULT_LIST:
+                    vals["liste"] = ""
+                old = self.conn.execute("SELECT id, updated FROM shopping WHERE sid=?", (sid,)).fetchone()
+                if old is None:
+                    ou = sid[2:] if sid.startswith("o:") else "frei:" + sid[2:]
+                    if self.conn.execute("SELECT 1 FROM shopping WHERE offer_uid=?", (ou,)).fetchone():
+                        ou = "frei:" + secrets.token_hex(8)
+                    self.conn.execute(
+                        "INSERT INTO shopping (offer_uid, sid, added, updated, srv, " + ", ".join(vals) + ") "
+                        "VALUES (?,?,?,?,?," + ",".join("?" * len(vals)) + ")",
+                        (ou, sid, now_iso(), upd or now, now, *vals.values()))
+                elif parse_ts(upd) > parse_ts(old["updated"]):
+                    self.conn.execute("UPDATE shopping SET " + ", ".join(f"{k}=?" for k in vals) +
+                                      ", updated=?, srv=? WHERE id=?", (*vals.values(), upd, now, old["id"]))
+            self.conn.commit()
+            rows = self.conn.execute("SELECT * FROM shopping ORDER BY id").fetchall()
+        return [shopping_json(r) for r in rows]
+
+    def shopping_purge(self, days: int = 60) -> None:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        for r in self.q("SELECT id, updated FROM shopping WHERE deleted=1"):
+            if parse_ts(r["updated"]) < cutoff:
+                self.x("DELETE FROM shopping WHERE id=?", (r["id"],))
 
     # ---------- Sonstiges ----------
     def meta_get(self, key: str, default: str = "") -> str:

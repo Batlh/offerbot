@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../data/zettel.dart';
 import '../main.dart';
 import '../models.dart';
 import 'prospekte_page.dart';
+import 'setup_page.dart';
 import 'treffer_page.dart';
 import 'watchlist_page.dart';
 import 'zettel_page.dart';
@@ -38,11 +40,36 @@ class _HomePageState extends State<HomePage> {
       showSearch(context: context, delegate: OfferSearch());
     } else if (v == 'trennen') {
       scope.disconnect();
+    } else if (v == 'verbinden') {
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (ctx) => SetupPage(onConnected: (c) async {
+          await scope.connect(c);
+          if (ctx.mounted) Navigator.of(ctx).pop();
+        }),
+      ));
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final scope = AppScope.of(context);
+    if (!scope.hasPc) {
+      // Ohne PC: nur die Einkaufsliste
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Einkaufsliste'),
+          actions: [
+            PopupMenuButton<String>(
+              onSelected: _menu,
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'verbinden', child: Text('Mit AngebotsBot am PC verbinden')),
+              ],
+            ),
+          ],
+        ),
+        body: ZettelPage(key: _keys[1]),
+      );
+    }
     final pages = [
       TrefferPage(key: _keys[0]),
       ZettelPage(key: _keys[1]),
@@ -151,14 +178,15 @@ class OfferTile extends StatelessWidget {
         ],
       ),
       onTap: () => openOffer(context, o),
-      onLongPress: () async {
-        final messenger = ScaffoldMessenger.of(context);
-        try {
-          await AppScope.of(context).source.zettelHinzufuegen(uid: o.uid);
-          messenger.showSnackBar(const SnackBar(content: Text('Auf den Einkaufszettel gesetzt')));
-        } catch (e) {
-          messenger.showSnackBar(SnackBar(content: Text(e.toString())));
-        }
+      onLongPress: () {
+        final zettel = AppScope.of(context).zettel;
+        final r = zettel.addOffer(o);
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(
+              content: Text(r == AddResult.exists
+                  ? 'Steht schon auf „${zettel.current}“'
+                  : 'Auf „${zettel.current}“ gesetzt')));
       },
     );
   }

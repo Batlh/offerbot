@@ -1,7 +1,7 @@
 name: angebotsbot
-description: Begleit-App zum AngebotsBot (PC) – Treffer, Einkaufszettel, Watchlist und Prospekte im WLAN.
+description: Begleit-App zum AngebotsBot (PC) – Einkaufsliste (auch ohne PC), Treffer, Watchlist und Prospekte.
 publish_to: none
-version: 1.9.0+1
+version: 1.10.0+1
 
 environment:
   sdk: ">=3.5.0 <4.0.0"

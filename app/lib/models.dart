@@ -93,46 +93,103 @@ class Offer {
   }
 }
 
+/// Name der Standardliste (am PC: leeres Feld „liste“).
+const defaultList = 'Einkaufszettel';
+
+final _numOnly = RegExp(r'^\d+([.,]\d+)?$');
+
+/// Ein Eintrag auf einem Einkaufszettel. Liegt auf dem Handy und wird mit dem PC abgeglichen:
+/// [sid] ist auf beiden Seiten gleich, [updated] entscheidet („neuere Änderung gewinnt“),
+/// [deleted] merkt sich das Löschen, damit die andere Seite es mitbekommt.
 class ShopItem {
-  final int id;
+  final String sid;
   final String title;
+  final String qty;
+  final String category;
+  final String liste;
   final double? price;
   final String merchant;
   final String base;
   final String validTo;
   final String url;
   final bool done;
+  final bool deleted;
+  final DateTime updated;
 
-  const ShopItem({
-    required this.id,
+  ShopItem({
+    required this.sid,
     required this.title,
+    this.qty = '',
+    this.category = '',
+    this.liste = defaultList,
     this.price,
     this.merchant = '',
     this.base = '',
     this.validTo = '',
     this.url = '',
     this.done = false,
-  });
+    this.deleted = false,
+    DateTime? updated,
+  }) : updated = updated ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+
+  /// „2× Milch“ bzw. „500 g Hackfleisch“.
+  String get text {
+    if (qty.isEmpty) return title;
+    return _numOnly.hasMatch(qty) ? '$qty× $title' : '$qty $title';
+  }
+
+  /// Laden zum Sortieren; ohne Angabe „Sonstige“.
+  String get shop => merchant.isEmpty ? 'Sonstige' : merchant;
 
   factory ShopItem.fromJson(Map<String, dynamic> j) => ShopItem(
-        id: j['id'] as int,
+        sid: j['sid'] == null ? 'pc:${j['id']}' : _s(j['sid']),
         title: _s(j['title']),
+        qty: _s(j['qty']),
+        category: _s(j['category']),
+        liste: _s(j['liste']).isEmpty ? defaultList : _s(j['liste']),
         price: _d(j['price']),
-        merchant: _s(j['merchant']).isEmpty ? 'Sonstige' : _s(j['merchant']),
+        merchant: _s(j['merchant']) == 'Sonstige' ? '' : _s(j['merchant']),
         base: _s(j['base']),
         validTo: _s(j['valid_to']),
         url: _s(j['url']),
         done: j['done'] == true,
+        deleted: j['deleted'] == true,
+        updated: DateTime.tryParse(_s(j['updated']))?.toUtc(),
       );
 
-  ShopItem copyWith({bool? done}) => ShopItem(
-      id: id, title: title, price: price, merchant: merchant, base: base, validTo: validTo, url: url,
-      done: done ?? this.done);
-
   Map<String, dynamic> toJson() => {
-        'id': id, 'title': title, 'price': price, 'merchant': merchant, 'base': base,
-        'valid_to': validTo, 'url': url, 'done': done,
+        'sid': sid, 'title': title, 'qty': qty, 'category': category, 'liste': liste, 'price': price,
+        'merchant': merchant, 'base': base, 'valid_to': validTo, 'url': url, 'done': done, 'deleted': deleted,
+        'updated': updated.toUtc().toIso8601String(),
       };
+
+  ShopItem copyWith({
+    String? title,
+    String? qty,
+    String? category,
+    String? liste,
+    double? price,
+    bool clearPrice = false,
+    String? merchant,
+    bool? done,
+    bool? deleted,
+    DateTime? updated,
+  }) =>
+      ShopItem(
+        sid: sid,
+        title: title ?? this.title,
+        qty: qty ?? this.qty,
+        category: category ?? this.category,
+        liste: liste ?? this.liste,
+        price: clearPrice ? null : (price ?? this.price),
+        merchant: merchant ?? this.merchant,
+        base: base,
+        validTo: validTo,
+        url: url,
+        done: done ?? this.done,
+        deleted: deleted ?? this.deleted,
+        updated: updated ?? this.updated,
+      );
 }
 
 class WatchEntry {

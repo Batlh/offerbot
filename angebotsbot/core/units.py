@@ -80,3 +80,24 @@ def fmt_base(val: float | None, unit: str | None) -> str:
     if val is None or not unit:
         return ""
     return f"{val:,.2f} €/{unit}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+# ---------- Menge auf dem Einkaufszettel ----------
+_QTY_UNITS = (r"(?:kg|g|gr|ml|l|ltr|liter|stk\.?|stück|pck\.?|packungen?|pkg\.?|dosen?|fl\.?|flaschen?|bund|becher|"
+              r"gläser|glas|beutel|netze?|rollen?|tafeln?|kästen|kasten|kisten?|sixpack|tüten?)")
+_QTY_FRONT = re.compile(r"^\s*(?P<n>\d+(?:[.,]\d+)?)\s*(?:(?:x|×)|(?P<u>" + _QTY_UNITS + r")(?=\s))?\s+(?P<rest>.+?)\s*$",
+                        re.I)
+_QTY_BACK = re.compile(r"^\s*(.+?)\s+(\d+(?:[.,]\d+)?)\s*(x|×)?\s*$", re.I)
+
+
+def split_quantity(text: str) -> tuple[str, str]:
+    """„2 Milch“ → ("2", "Milch"), „500 g Hack“ → ("500 g", "Hack"), „Milch 2x“ → ("2", "Milch").
+    Ohne erkennbare Menge: ("", text)."""
+    t = " ".join(text.split())
+    m = _QTY_FRONT.match(t)
+    if m:
+        return (f"{m['n']} {m['u'] or ''}".strip(), m["rest"])
+    m = _QTY_BACK.match(t)
+    if m and m.group(3):  # „Milch 2x“ – ohne x bleibt „Cola 1,5“ unverändert
+        return (m.group(2), m.group(1))
+    return ("", t)
