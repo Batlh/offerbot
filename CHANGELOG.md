@@ -3,6 +3,13 @@
 Alle Versionen des AngebotsBot (offerbot). Die neueste steht oben.
 Jede Release auf GitHub enthält die fertige Windows-Version als ZIP (`AngebotsBot-windows.zip`).
 
+## 1.10.2 – 2026-11-17
+### Behoben
+- „Prüfung im Browser lösen“ brach mit „Executable doesn't exist … chromium-1255“ ab, wenn der Browser-Modus aus
+  war oder eine neue Version eine neuere Chromium-Fassung erwartet. Jetzt wird der Browser beim ersten Bedarf
+  automatisch eingerichtet – bevorzugt das installierte Microsoft Edge, sonst einmaliger Chromium-Download –
+  und gemerkt. Gilt auch für Browser-Modus und Blätterkataloge.
+
 ## 1.10.1 – 2026-11-17
 ### Behoben
 - Browser-Kennung (User-Agent) war veraltet (Chrome 131 von 2024) → jetzt Chrome 157. Bestehende Einstellungen

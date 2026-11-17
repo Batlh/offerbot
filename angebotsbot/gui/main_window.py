@@ -428,8 +428,11 @@ class MainWindow(QMainWindow):
         from ..core import assist
 
         def fn(log, prog, cancelled):
-            for _sid, name, url in todo:
-                assist.solve_in_browser(url, self.config.settings, log, cancel=cancelled)
+            try:
+                for _sid, name, url in todo:
+                    assist.solve_in_browser(url, self.config.settings, log, cancel=cancelled)
+            finally:
+                self.config.save()  # ggf. neu eingerichteten Browser (Edge/Chromium) merken
             return [sid for sid, _, _ in todo]
 
         def done(ids):

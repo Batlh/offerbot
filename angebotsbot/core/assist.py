@@ -112,22 +112,18 @@ def solve_in_browser(url: str, settings: dict, log: Callable[[str], None] = prin
                      cancel: Callable[[], bool] = lambda: False) -> int:
     """Öffnet url in einem sichtbaren Browserfenster und wartet, bis die Prüfung gelöst ist.
     Gibt die Anzahl übernommener Cookies zurück."""
-    from .browser_setup import prepare_env, playwright_installed
+    from .browser_setup import launch, prepare_env, playwright_installed
     if not playwright_installed():
-        raise RuntimeError("Dafür wird der Browser-Modus gebraucht – in den Einstellungen anhaken")
+        raise RuntimeError("Playwright fehlt in dieser Version – bitte die aktuelle AngebotsBot-Version herunterladen")
     prepare_env()
     from playwright.sync_api import sync_playwright
-    channel = settings.get("browser_channel") or None
-    if channel == "chromium":
-        channel = None
     profile = data_dir() / "browser" / "profil"
     profile.mkdir(parents=True, exist_ok=True)
     domain = base_domain(urlparse(url).hostname or "")
     log(f"Öffne Browserfenster für {domain} – bitte die Prüfung dort selbst lösen (höchstens {timeout_s // 60} Minuten)")
     with sync_playwright() as p:
         kw = {"headless": False, "locale": "de-DE", "viewport": None}
-        ctx = p.chromium.launch_persistent_context(str(profile), channel=channel, **kw) if channel \
-            else p.chromium.launch_persistent_context(str(profile), **kw)
+        ctx = launch(p, settings, log, persistent_dir=profile, **kw)
         try:
             page = ctx.pages[0] if ctx.pages else ctx.new_page()
             page.goto(url, timeout=60000)

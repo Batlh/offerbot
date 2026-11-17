@@ -96,3 +96,54 @@ def ensure(log: Callable[[str], None] = print) -> str:
     test_launch(None)
     log("Browser-Modus nutzt Chromium ✔")
     return "chromium"
+
+
+def _missing_browser(e: Exception) -> bool:
+    t = str(e)
+    return "Executable doesn't exist" in t or "playwright install" in t or "is not found at" in t \
+        or "Chromium distribution 'msedge' is not found" in t
+
+
+def launch(p, settings: dict, log: Callable[[str], None] = print, persistent_dir=None, **kw):
+    """Startet den Browser für den Bot. Ohne eingerichteten Kanal oder wenn der Browser fehlt (z. B. weil eine
+    neue Version eine neuere Chromium-Fassung erwartet), wird er einmal automatisch eingerichtet:
+    zuerst das installierte Edge, sonst Chromium-Download. Der Kanal landet in settings["browser_channel"]."""
+    def start(channel: str):
+        args = dict(kw)
+        if channel and channel != "chromium":
+            args["channel"] = channel
+        if persistent_dir is not None:
+            return p.chromium.launch_persistent_context(str(persistent_dir), **args)
+        return p.chromium.launch(**args)
+
+    channel = settings.get("browser_channel") or ""
+    if channel:
+        try:
+            return start(channel)
+        except Exception as e:
+            if not _missing_browser(e):
+                raise
+            log(f"Browser ({channel}) nicht gefunden – richte ihn neu ein …")
+    channel = _ensure_in_thread(log)
+    settings["browser_channel"] = channel
+    return start(channel)
+
+
+def _ensure_in_thread(log: Callable[[str], None]) -> str:
+    """ensure() startet selbst Playwright (sync API) – das geht nicht innerhalb eines laufenden
+    sync_playwright()-Blocks, darum in einem eigenen Thread."""
+    import threading
+    out: dict = {}
+
+    def run():
+        try:
+            out["channel"] = ensure(log)
+        except Exception as e:  # an den Aufrufer weiterreichen
+            out["error"] = e
+
+    t = threading.Thread(target=run, daemon=True)
+    t.start()
+    t.join()
+    if "error" in out:
+        raise out["error"]
+    return out["channel"]

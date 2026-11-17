@@ -112,20 +112,17 @@ class Fetcher:
         """Seite in echtem (unsichtbarem) Browser laden – für Seiten, die erst per JavaScript Inhalte zeigen."""
         if not self.settings.get("browser_mode"):
             raise FetchError("Browser-Modus ist aus – in den Einstellungen den Haken setzen (richtet sich selbst ein)")
-        from .browser_setup import prepare_env
+        from .browser_setup import launch, prepare_env
         prepare_env()
         try:
             from playwright.sync_api import sync_playwright  # type: ignore
         except ImportError as e:
             raise FetchError("Browser-Modus noch nicht eingerichtet – Haken in den Einstellungen neu setzen") from e
-        channel = self.settings.get("browser_channel") or None
-        if channel == "chromium":
-            channel = None
         self._wait(url)
-        LOG.debug("Browser (%s) lädt %s", channel or "chromium", url)
+        LOG.debug("Browser (%s) lädt %s", self.settings.get("browser_channel") or "?", url)
         t0 = time.time()
         with sync_playwright() as p:
-            browser = p.chromium.launch(channel=channel, headless=True) if channel else p.chromium.launch(headless=True)
+            browser = launch(p, self.settings, LOG.info, headless=True)
             try:
                 page = browser.new_page(locale="de-DE")
                 page.goto(url, timeout=int(float(self.settings.get("timeout_s", 20)) * 1000))
@@ -148,16 +145,13 @@ class Fetcher:
         if not self.settings.get("browser_mode"):
             raise FetchError("Browser-Modus ist aus – in den Einstellungen den Haken setzen (richtet sich selbst ein)")
         import hashlib
-        from .browser_setup import prepare_env
+        from .browser_setup import launch, prepare_env
         prepare_env()
         from playwright.sync_api import sync_playwright  # type: ignore
-        channel = self.settings.get("browser_channel") or None
-        if channel == "chromium":
-            channel = None
         shots: list[bytes] = []
         last = ""
         with sync_playwright() as p:
-            browser = p.chromium.launch(channel=channel, headless=True) if channel else p.chromium.launch(headless=True)
+            browser = launch(p, self.settings, LOG.info, headless=True)
             try:
                 page = browser.new_page(viewport={"width": width, "height": height}, locale="de-DE")
                 for url in urls:

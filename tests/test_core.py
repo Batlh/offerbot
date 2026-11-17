@@ -679,3 +679,39 @@ def test_user_agent_migration(tmp_path, monkeypatch):
     eigen = "MeinBrowser/1.0"
     (tmp_path / "config.json").write_text(json.dumps({"settings": {"user_agent": eigen, "migrations": []}}), encoding="utf-8")
     assert Config(tmp_path / "config.json").settings["user_agent"] == eigen
+
+
+def test_browser_launch_repairs_missing_browser(monkeypatch):
+    from angebotsbot.core import browser_setup
+
+    calls = []
+
+    class Chromium:
+        def launch(self, **kw):
+            calls.append(kw.get("channel", "chromium"))
+            if len(calls) == 1:
+                raise RuntimeError("Executable doesn't exist at C:\\x\\chromium-1255\\chrome.exe\nplaywright install")
+            return "browser"
+
+        def launch_persistent_context(self, path, **kw):
+            calls.append(("profil", kw.get("channel", "chromium")))
+            return "ctx"
+
+    class P:
+        chromium = Chromium()
+
+    monkeypatch.setattr(browser_setup, "ensure", lambda log=print: "msedge")
+    s = {"browser_channel": "chromium"}
+    assert browser_setup.launch(P(), s, lambda m: None, headless=True) == "browser"
+    assert calls == ["chromium", "msedge"] and s["browser_channel"] == "msedge"
+    # ohne eingerichteten Kanal (Browser-Modus aus): erst einrichten, dann starten
+    s2 = {"browser_channel": ""}
+    assert browser_setup.launch(P(), s2, lambda m: None, persistent_dir="x", headless=False) == "ctx"
+    assert calls[-1] == ("profil", "msedge") and s2["browser_channel"] == "msedge"
+    # andere Fehler werden nicht verschluckt
+    class Bad(Chromium):
+        def launch(self, **kw):
+            raise ValueError("kaputt")
+    P.chromium = Bad()
+    with pytest.raises(ValueError):
+        browser_setup.launch(P(), {"browser_channel": "msedge"}, lambda m: None)
