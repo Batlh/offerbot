@@ -70,7 +70,13 @@ optional eigene Quellen direkt auf dem Handy (mydealz, kaufDA, Bonial, Lidl – 
 7. [ ] Test auf dem Handy im WLAN (Nutzer)
 8. [x] Einkaufsliste eigenständig (1.10): liegt auf dem Handy, Abgleich mit dem PC (`/api/zettel/sync`, neuere
    Änderung gewinnt, Löschen als Grabstein), Mengen, Kategorien, mehrere Listen, Teilen, Modus „ohne PC“
-9. [ ] Später: Offline-Treffer, Benachrichtigungen in der App, App-Symbol, gemeinsame Liste mit einer
+9. [ ] Geplant: Captcha/Prüfung vom Handy aus lösen (wenn man nicht am PC sitzt). Hinweis „<Seite> braucht
+   eine Prüfung“ in der App → „Jetzt lösen“. Weg 1: Seite im eingebauten Browser der App öffnen, Nutzer löst,
+   Cookies + User-Agent gehen an den PC (`assist.save_sites`); klappt nur, wenn die Freigabe nicht ans Gerät
+   gebunden ist (im selben WLAN am wahrscheinlichsten). Weg 2 (Ausweichlösung): sichtbaren Browser vom PC als
+   Bilder aufs Handy spiegeln, Tippen = Klick. Immer vom Nutzer selbst gelöst, nie umgangen. Unterwegs nur mit
+   Zugang ins Heimnetz (z. B. VPN).
+10. [ ] Später: Offline-Treffer, Benachrichtigungen in der App, App-Symbol, gemeinsame Liste mit einer
    zweiten Person (bräuchte einen Server oder den PC als Treffpunkt)
 
 ### Hinweise
