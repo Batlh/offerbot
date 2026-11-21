@@ -168,6 +168,8 @@ Export als CSV (Excel) und HTML über „Exportieren …“ oder automatisch nac
 Eine Android-Version braucht nur eine neue Oberfläche, die `core.engine.Engine` aufruft.
 Tests: `python -m pytest tests`.
 
+Offene Punkte (Hilfe im Programm, fehlende kaufDA-Händler, APIs): [docs/TODO.md](docs/TODO.md).
+
 ## Lizenz
 
 MIT – siehe [LICENSE](LICENSE).
