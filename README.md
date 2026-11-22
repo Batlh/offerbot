@@ -169,6 +169,7 @@ Eine Android-Version braucht nur eine neue Oberfläche, die `core.engine.Engine`
 Tests: `python -m pytest tests`.
 
 Offene Punkte (Hilfe im Programm, fehlende kaufDA-Händler, APIs): [docs/TODO.md](docs/TODO.md).
+Briefing für KI-Assistenten (Regeln, Aufbau, Release-Ablauf): [AGENTS.md](AGENTS.md).
 
 ## Lizenz
 
