@@ -1,8 +1,8 @@
-import 'package:angebotsbot/data/source.dart';
-import 'package:angebotsbot/data/store.dart';
-import 'package:angebotsbot/data/zettel.dart';
-import 'package:angebotsbot/main.dart';
-import 'package:angebotsbot/models.dart';
+import 'package:offerbot/data/source.dart';
+import 'package:offerbot/data/store.dart';
+import 'package:offerbot/data/zettel.dart';
+import 'package:offerbot/main.dart';
+import 'package:offerbot/models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';

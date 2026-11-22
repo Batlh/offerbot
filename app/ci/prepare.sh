@@ -2,7 +2,7 @@
 # Erzeugt den Android-Ordner, setzt App-Namen, Rechte und die feste Signatur (Vorlage: casino-app).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-flutter create --project-name angebotsbot --org de.batlh --platforms=android .
+flutter create --project-name offerbot --org io.github.batlh --platforms=android .
 rm -f test/widget_test.dart  # Beispieltest von flutter create, passt nicht zur App
 flutter pub get
 MAN=android/app/src/main/AndroidManifest.xml

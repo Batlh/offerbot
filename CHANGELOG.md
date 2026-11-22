@@ -3,6 +3,12 @@
 Alle Versionen des AngebotsBot (offerbot). Die neueste steht oben.
 Jede Release auf GitHub enthält die fertige Windows-Version als ZIP (`AngebotsBot-windows.zip`).
 
+## 1.10.3 – 2026-11-22
+### Geändert
+- Android installiert die APK mit dem neuen Paketnamen `io.github.batlh.offerbot` als separate App.
+  Vor dem Wechsel die Einkaufsliste der alten App mit dem PC abgleichen. Die neue APK installieren,
+  per QR-Code koppeln und abgleichen. Sobald alle Einträge da sind, die alte App deinstallieren.
+
 ## 1.10.2 – 2026-11-17
 ### Behoben
 - „Prüfung im Browser lösen“ brach mit „Executable doesn't exist … chromium-1255“ ab, wenn der Browser-Modus aus
