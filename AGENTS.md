@@ -1,6 +1,6 @@
 # Briefing für KI-Assistenten (GPT/Codex, Claude)
 
-Stand: 22.11.2026, Version 1.10.2. Kurz und verbindlich – bitte vor jeder Arbeit lesen.
+Stand: 22.11.2026, Version 1.10.3. Kurz und verbindlich – bitte vor jeder Arbeit lesen.
 
 ## Arbeitsweise (Vorgaben des Nutzers)
 
@@ -64,6 +64,7 @@ Daten liegen im Ordner `data/` neben der EXE (nie committen).
 - Einkaufsliste: Einträge haben eine feste `sid` („o:<Angebot>“ / „f:<Zufall>“) und `updated` (UTC);
   beim Abgleich gewinnt die neuere Änderung, Löschen = Grabstein (`deleted`). PC und App gleich halten
   (`db.shopping_sync` ↔ `ZettelRepo.merge`), auch die Mengen-Erkennung (`units.split_quantity` ↔ `splitQuantity`).
+- Android-Paketname: `io.github.batlh.offerbot`.
 - Region-Platzhalter in Quellen: `{ort}`, `{plz}`, `{kaufda}` (Standard Trier/54290, Frankreich Thionville).
 
 ## Offene Punkte
@@ -72,9 +73,4 @@ Siehe `docs/TODO.md` (Hilfe im Programm, fehlende kaufDA-Händler wie Netto, off
 `docs/ANDROID.md` (Captcha vom Handy lösen, App-Symbol, Offline-Treffer). Ergänzend:
 
 - mydealz-RSS ist **schon** als Quelle drin (`core/sources/rss.py`) – TODO-Punkt dazu nur noch auf Filter prüfen.
-- **Paketname der App:** Vorgabe des Nutzers ist `io.github.batlh.<Repo-Name>`, also `io.github.batlh.offerbot`.
-  Aktuell erzeugt `app/ci/prepare.sh` noch `de.batlh.angebotsbot` (`--org de.batlh --project-name angebotsbot`).
-  Beim Umstellen beachten: Android sieht das als **neue App** – die alte muss deinstalliert werden, die
-  Einkaufsliste geht dabei nur verloren, wenn sie nicht vorher mit dem PC abgeglichen wurde. Im CHANGELOG deutlich
-  darauf hinweisen.
 - Echte Tests auf dem Handy und an allen Quellen auf dem PC des Nutzers stehen noch aus.

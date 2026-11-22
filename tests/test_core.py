@@ -504,13 +504,16 @@ def test_check_required_and_saved_site(env, monkeypatch):
 
 
 def test_telegram_bot_commands(env, monkeypatch):
+    from datetime import date
+
     cfg, db, eng = env
     from angebotsbot.core import notify
     from angebotsbot.core.models import Offer, WatchItem
     from angebotsbot.core.telegram_bot import TelegramBot
     cfg.settings["phone"]["telegram_chat_id"] = ""
     cfg.watchlist = [WatchItem("Butter", keywords="butter", in_prospekte=True)]
-    o = Offer("s", "S", "Kerrygold Butter 250 g", price=1.69, merchant="Lidl", kind="prospekt", valid_to="21.11.")
+    valid_to = date.today().strftime("%d.%m.")
+    o = Offer("s", "S", "Kerrygold Butter 250 g", price=1.69, merchant="Lidl", kind="prospekt", valid_to=valid_to)
     db.upsert_offers([o])
     eng.match([o])
     started, paired = [], []
@@ -529,7 +532,7 @@ def test_telegram_bot_commands(env, monkeypatch):
     say(99, "/start")
     assert len(out) == n + 1 and "anderen Konto" in out[-1][1]
     say(7, "/treffer")
-    assert "1,69 €" in out[-1][1] and "6,76 €/kg" in out[-1][1] and "bis 21.11." in out[-1][1]
+    assert "1,69 €" in out[-1][1] and "6,76 €/kg" in out[-1][1] and f"bis {valid_to}" in out[-1][1]
     say(7, "/suche kerrygold")
     assert "Kerrygold" in out[-1][1]
     say(7, "/pruefen")
