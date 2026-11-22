@@ -14,7 +14,7 @@ from ..core.paths import prospekt_dir
 from ..core.prices import fmt_price
 from .common import Col, make_table, open_local, open_url, selected_rows
 
-RETAILERS = ["ALDI SÜD", "ALDI Nord", "Lidl", "Kaufland", "REWE", "EDEKA", "Netto", "Penny", "Globus", "Metro",
+RETAILERS = ["ALDI SÜD", "ALDI Nord", "Lidl", "Kaufland", "REWE", "EDEKA", "E center", "Decathlon", "Netto Marken-Discount", "PENNY", "GLOBUS", "Metro",
              "Norma", "dm", "Rossmann", "Cactus (LU)", "Auchan (LU)", "Delhaize (LU)", "Lidl (LU)", "ALDI (LU)"]
 
 

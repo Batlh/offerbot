@@ -718,3 +718,76 @@ def test_browser_launch_repairs_missing_browser(monkeypatch):
     P.chromium = Bad()
     with pytest.raises(ValueError):
         browser_setup.launch(P(), {"browser_channel": "msedge"}, lambda m: None)
+
+
+def test_store_api_europreise():
+    from angebotsbot.core.models import Source, WatchItem
+    from angebotsbot.core.sources import REGISTRY, RunContext
+    shop = "https://shop.example"
+    products = [{"name": "Butter", "permalink": shop + "/butter", "prices": {
+        "currency_code": currency, "currency_minor_unit": 2, "price": "149", "regular_price": "199"}}
+        for currency in ("USD", "EUR")]
+    ctx = RunContext(FakeFetcher({"/robots.txt": "", "/products?search=Butter": json.dumps(products)}),
+                     None, {}, [WatchItem("Butter")])
+    offers = REGISTRY["woocommerce_api"].run(ctx, Source("Shop", "woocommerce_api", {"shop": shop}))
+    assert [(o.title, o.price, o.old_price) for o in offers] == [("Butter", 1.49, 1.99)]
+
+
+def test_kaufda_filter_vor_seitenlimit():
+    from angebotsbot.core.models import Source, WatchItem
+    from angebotsbot.core.sources import REGISTRY, RunContext
+    products = [{"type": "OFFER", "title": "Butter", "publisherName": merchant}
+                for merchant in ("Lidl", "Netto Marken-Discount")]
+    data = {"props": {"pageProps": {"pageInformation": {"offers": {"main": {"items": products}}}}}}
+    page = '<script id="__NEXT_DATA__" type="application/json">' + json.dumps(data) + '</script>'
+    logs = []
+    ctx = RunContext(FakeFetcher({"/Trier/Angebote/Butter": page}), None, {"region": {"ort": "Trier"}},
+                     [WatchItem("Butter", in_prospekte=True)], log=logs.append)
+    source = Source("Test", "kaufda", {"retailers": "Netto", "max_results": 1})
+    offers = REGISTRY["kaufda"].run(ctx, source)
+    assert [o.merchant for o in offers] == ["Netto Marken-Discount"]
+    assert any("2 Händler gefunden, 1 ohne Watchlist-Treffer" in line for line in logs)
+
+
+@pytest.mark.parametrize("api_status,html_calls", [(200, 0), (404, 1), (403, 0), (429, 0)])
+def test_api_vorrang(api_status, html_calls):
+    from angebotsbot.core.models import Source, WatchItem
+    from angebotsbot.core.net import FetchError
+    from angebotsbot.core.sources import REGISTRY, RunContext
+
+    calls = []
+    class Shop:
+        def get(self, url, as_json=False):
+            if url.endswith("robots.txt"):
+                return ""
+            if as_json:
+                if api_status == 200:
+                    return []
+                raise FetchError(f"HTTP {api_status} bei {url}")
+            calls.append(url)
+            return "<article>Butter</article>"
+
+    ctx = RunContext(Shop(), None, {}, [WatchItem("Butter")])
+    source = Source("Test", "html_list", {"url": "https://shop.example/?q={query}",
+                    "api_shop": "https://shop.example", "item_selector": "article"})
+    if api_status in (403, 429):
+        with pytest.raises(FetchError):
+            REGISTRY["html_list"].run(ctx, source)
+    else:
+        offers = REGISTRY["html_list"].run(ctx, source)
+        assert len(offers) == html_calls
+    assert len(calls) == html_calls
+
+
+def test_hilfetexte_fuer_alle_tabs(monkeypatch):
+    pytest.importorskip("PySide6")
+    from PySide6.QtWidgets import QApplication, QDialog, QMainWindow, QTextBrowser
+    from angebotsbot.gui.main_window import MainWindow
+    app = QApplication.instance() or QApplication([])
+    parent = QMainWindow()
+    texts = []
+    monkeypatch.setattr(QDialog, "exec", lambda dlg: texts.append(dlg.findChild(QTextBrowser).toPlainText()))
+    for name in ("Erste Schritte", "Treffer", "Alle Angebote", "Watchlist", "Quellen", "Prospekte",
+                 "Einkaufszettel", "Einstellungen", "Protokoll"):
+        MainWindow.show_help(parent, name)
+        assert name in texts[-1]

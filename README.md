@@ -23,6 +23,13 @@ Optional:
 - `build_exe.bat` – baut eine eigenständige `AngebotsBot.exe` (danach braucht es kein Python mehr).
 - `start_mit_konsole.bat` – wie start.bat, zeigt aber Fehlermeldungen an.
 
+## Erste Schritte
+
+1. Unter **Einstellungen → Region** Ort und PLZ eintragen und speichern.
+2. Unter **Watchlist → Neu** ein Produkt wie Butter anlegen. Stichwörter, Höchstpreis und Suchbereiche wählen und speichern.
+3. **Alles jetzt prüfen** starten. Im **Protokoll** den Lauf verfolgen und unter **Treffer** die passenden Angebote öffnen.
+4. Für die Android-App in den Einstellungen die Handy-Schnittstelle im eigenen WLAN einschalten, speichern und den QR-Code mit der App scannen.
+
 ## So benutzt du ihn
 
 1. **Watchlist**: Was du suchst. Name, Stichwörter, Höchstpreis, optional Mindest-Rabatt.
@@ -42,6 +49,9 @@ Optional:
    Unter-Tab **Preisvergleich** (günstigster Händler je Watchlist-Eintrag, sortiert nach Grundpreis).
 5. **Einkaufszettel**: Rechtsklick auf einen Treffer → „Auf den Einkaufszettel“. Nach Läden sortiert, abhaken,
    drucken oder aufs Handy schicken.
+6. **Alle Angebote** zeigt die gesammelten Angebote der Quellen. Hier kannst du auch Einträge finden, die zu keinem Watchlist-Eintrag passen.
+7. **Einstellungen** enthält Region, Zeitplan, Benachrichtigungen, Export und KI. Änderungen mit „Speichern“ übernehmen.
+8. **Protokoll** zeigt Quellen, Anzahl der erkannten Angebote und Fehlermeldungen des aktuellen Laufs.
 
 ### Grundpreise und „Preis-Check“
 
@@ -73,6 +83,11 @@ Rechtsklick → **Preisverlauf** zeigt dazu ein Diagramm.
 | `butter` | Wörter ab 4 Buchstaben passen auch mitten im Wort (Markenbutter, Butterkeks) – mit `-keks` ausschließen |
 
 Groß-/Kleinschreibung und Umlaute sind egal (`kuhlschrank` findet „Kühlschrank“).
+
+## Quellen auswählen
+
+Für mydealz den RSS-Feed auswählen und in der Watchlist „Deals & Shops“, Stichwörter und Höchstpreis setzen.
+Für einen WooCommerce-Shop mit freigegebener Store API unter **Quellen → Neue Quelle → Deals: API – WooCommerce-Produktsuche** die Shop-Adresse eintragen und „Testen“ wählen. Für eine bestehende HTML-Watchlist-Suche die Shop-Adresse direkt im Feld „WooCommerce-Shop für API-Vorrang“ eintragen. Nur ein fehlender Endpunkt (HTTP 404) löst dann die HTML-Suche aus. Ein leeres Ergebnis oder eine Sperre löst keinen zweiten Abrufweg aus. Andere Shoptypen können weiter ihre bisherige Quelle verwenden. Unterstützte Zugänge und Voraussetzungen stehen in [der Quellenübersicht](docs/QUELLEN-API.md).
 
 ## Mitgelieferte Quellen
 

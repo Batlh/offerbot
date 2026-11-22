@@ -101,6 +101,10 @@ class SourcesTab(QWidget):
         self.group.addItems(["Deals", "Prospekte"])
         self.interval = QSpinBox(maximum=10080, suffix=" min", specialValueText="wie Einstellungen")
         self.enabled = QCheckBox("Aktiv")
+        self.name.setToolTip("Anzeigename in Trefferliste und Protokoll.")
+        self.group.setToolTip("Legt fest, bei welchem Teillauf die Quelle geprüft wird.")
+        self.interval.setToolTip("Minuten zwischen Abrufen. Null übernimmt den globalen Zeitplan.")
+        self.enabled.setToolTip("Diese Quelle in passende Prüfläufe aufnehmen.")
         cf.addRow("Name", self.name)
         cf.addRow("Bereich", self.group)
         cf.addRow("Abruf alle", self.interval)
@@ -173,8 +177,8 @@ class SourcesTab(QWidget):
                 w.setMaximumHeight(100)
             else:
                 w = QLineEdit(str(val or ""))
+            w.setToolTip(fs.help or fs.label)
             if fs.help:
-                w.setToolTip(fs.help)
                 if isinstance(w, QLineEdit):
                     w.setPlaceholderText(fs.help)
             self.tf.addRow(fs.label, w)
