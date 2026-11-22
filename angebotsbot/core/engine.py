@@ -27,6 +27,7 @@ class RunResult:
     new_offers: int = 0
     new_matches: list[tuple[Offer, WatchItem]] = field(default_factory=list)
     errors: dict[str, str] = field(default_factory=dict)
+    checked_sources: list[str] = field(default_factory=list)
     needs_check: list[tuple[str, str, str]] = field(default_factory=list)  # (Quellen-ID, Name, URL)
     new_prospekte: list[int] = field(default_factory=list)
 
@@ -78,6 +79,7 @@ class Engine:
                 break
             if progress:
                 progress(src.name, i, len(sources))
+            res.checked_sources.append(src.id)
             st = REGISTRY.get(src.type)
             if not st:
                 res.errors[src.name] = f"Unbekannter Quellen-Typ {src.type}"

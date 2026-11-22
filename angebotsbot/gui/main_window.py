@@ -117,6 +117,7 @@ class MainWindow(QMainWindow):
                  f"{sum(s.enabled for s in self.config.sources)} aktive Quellen")
         self.tg_bot = None
         self.restart_telegram_bot()
+        self.pending_checks = {}
         self.api_server = None
         self.restart_api()
         if self.config.settings.get("auto_start"):
@@ -260,6 +261,9 @@ class MainWindow(QMainWindow):
             lines = [f"{w.name}: {o.title[:60]} – {fmt_price(o.price)}" for o, w in res.new_matches[:4]]
             more = f"\n… und {n - 4} weitere" if n > 4 else ""
             self.tray.showMessage(f"{n} neue Treffer", "\n".join(lines) + more, QSystemTrayIcon.Information, 10000)
+        pending = {sid: name for sid, name in self.pending_checks.items() if sid not in res.checked_sources}
+        pending.update((sid, name) for sid, name, _ in res.needs_check)
+        self.pending_checks = pending
         if res.needs_check:
             self.offer_checks(res.needs_check)
         ph = self.config.settings.get("phone") or {}
@@ -415,6 +419,7 @@ class MainWindow(QMainWindow):
         try:
             self.api_server = ApiServer(self.config, self.db, self.engine, int(pa.get("port") or 8765), pa["key"],
                                         {"pruefen": lambda: QTimer.singleShot(0, self, lambda: self.run_now()),
+                                         "checks": lambda: list(self.pending_checks.values()),
                                          "changed": changed})
             self.api_server.start()
             self.log(f"Handy-Schnittstelle läuft (Port {pa.get('port')})")

@@ -1,6 +1,6 @@
 # Briefing für KI-Assistenten (GPT/Codex, Claude)
 
-Stand: 22.11.2026, Version 1.10.4. Kurz und verbindlich – bitte vor jeder Arbeit lesen.
+Stand: 22.11.2026, Version 1.10.5. Kurz und verbindlich – bitte vor jeder Arbeit lesen.
 
 ## Arbeitsweise (Vorgaben des Nutzers)
 
@@ -70,7 +70,7 @@ Daten liegen im Ordner `data/` neben der EXE (nie committen).
 ## Offene Punkte
 
 Die bearbeiteten Punkte zu Hilfe, kaufDA und APIs stehen in `docs/TODO.md`. Weitere Aufgaben siehe
-`docs/ANDROID.md` (Captcha vom Handy lösen, App-Symbol, Offline-Treffer). Ergänzend:
+`docs/ANDROID.md` (Praxistests auf dem Handy und optionale eigenständige App). Ergänzend:
 
 - mydealz-RSS ist **schon** als Quelle drin (`core/sources/rss.py`) – TODO-Punkt dazu nur noch auf Filter prüfen.
 - Echte Tests auf dem Handy und an allen Quellen auf dem PC des Nutzers stehen noch aus.

@@ -14,6 +14,7 @@ class FakeSource implements DataSource {
         sid: 'o:a', title: 'Kerrygold Butter 250 g', price: 1.69, merchant: 'Lidl', base: '6,76 €/kg',
         updated: DateTime.utc(2026, 11, 1)),
   };
+  bool offline = false;
   int geprueft = 0;
   int syncs = 0;
 
@@ -22,7 +23,7 @@ class FakeSource implements DataSource {
   @override
   Future<Status> status() async => const Status(version: '1.9.0', unread: 1);
   @override
-  Future<List<Offer>> treffer({bool nurUngelesen = false}) async => [
+  Future<List<Offer>> treffer({bool nurUngelesen = false}) async => offline ? throw const SourceException("PC offline") : [
         const Offer(uid: 'a', title: 'Kerrygold Butter 250 g', price: 1.69, oldPrice: 1.99, refPrice: 1.49,
             merchant: 'Lidl', base: '6,76 €/kg', validTo: '21.11.', watchName: 'Butter', seen: false),
       ];
@@ -56,6 +57,23 @@ class FakeSource implements DataSource {
 }
 
 void main() {
+  testWidgets('Gespeicherte Treffer bleiben offline filterbar', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final store = await Store.open();
+    await store.cacheTrefferJson([
+      const Offer(uid: 'neu', title: 'Testangebot neu', seen: false).toJson(),
+      const Offer(uid: 'alt', title: 'Testangebot gelesen').toJson(),
+    ]);
+    await tester.pumpWidget(AngebotsBotApp(store: store, source: FakeSource()..offline = true));
+    await tester.pumpAndSettle();
+    expect(find.text('Gespeicherte Treffer'), findsOneWidget);
+    expect(find.text('Testangebot gelesen'), findsOneWidget);
+    await tester.tap(find.text('Nur neue'));
+    await tester.pumpAndSettle();
+    expect(find.text('Testangebot neu'), findsOneWidget);
+    expect(find.text('Testangebot gelesen'), findsNothing);
+  });
+
   test('QR-Code wird gelesen', () {
     final c = Connection.parse('angebotsbot://verbinden?url=http://192.168.1.20:8765&key=abc_123');
     expect(c, isNotNull);

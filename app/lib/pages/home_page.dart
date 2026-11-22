@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -17,7 +19,70 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
+  Timer? _timer;
+  Status? _status;
+  bool _polling = false;
+  bool _online = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _schedule();
+  }
+
+  void _schedule() {
+    _timer?.cancel();
+    if (!AppScope.of(context).hasPc) return;
+    _poll();
+    _timer = Timer.periodic(const Duration(minutes: 1), (_) => _poll());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _schedule();
+    } else {
+      _timer?.cancel();
+    }
+  }
+
+  Future<void> _poll() async {
+    final scope = AppScope.of(context);
+    if (_polling || !scope.hasPc) return;
+    _polling = true;
+    try {
+      final status = await scope.source.status();
+      if (!mounted || AppScope.of(context).pcSource != scope.pcSource) return;
+      final previous = _status;
+      setState(() { _status = status; _online = true; });
+      if (previous != null && status.unread > previous.unread) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('${status.unread - previous.unread} neue Treffer'),
+          action: SnackBarAction(label: 'Ansehen', onPressed: () => setState(() => _tab = 0)),
+        ));
+      }
+      if (_tab == 1) await scope.zettel.sync();
+    } catch (_) {
+      if (mounted && _online) setState(() => _online = false);
+    } finally {
+      _polling = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
   int _tab = 0;
   final _keys = [GlobalKey(), GlobalKey(), GlobalKey(), GlobalKey()];
 
@@ -71,7 +136,7 @@ class _HomePageState extends State<HomePage> {
       );
     }
     final pages = [
-      TrefferPage(key: _keys[0]),
+      TrefferPage(key: ValueKey((_status?.lastRun, _status?.unread))),
       ZettelPage(key: _keys[1]),
       WatchlistPage(key: _keys[2]),
       ProspektePage(key: _keys[3]),
@@ -90,10 +155,28 @@ class _HomePageState extends State<HomePage> {
           ),
         ],
       ),
-      body: IndexedStack(index: _tab, children: pages),
+      body: Column(children: [
+        if (_online && (_status?.checks.isNotEmpty ?? false))
+          ListTile(
+            leading: const Icon(Icons.verified_user_outlined),
+            title: Text('Prüfung nötig: ${_status!.checks.join(", ")}'),
+            trailing: const Icon(Icons.help_outline),
+            onTap: () => showDialog<void>(context: context, builder: (ctx) => AlertDialog(
+              title: const Text('Prüfung vom Handy lösen'),
+              content: const Text('Öffne deine eingerichtete Remotedesktop-App und verbinde dich mit dem PC. '
+                  'Bestätige dort im AngebotsBot „Browserfenster öffnen“ und löse die Prüfung selbst. '
+                  'Falls du „Später“ gewählt hast, findest du die Aktion im Tab Quellen.'),
+              actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
+            )),
+          ),
+        Expanded(child: IndexedStack(index: _tab, children: pages)),
+      ]),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
-        onDestinationSelected: (i) => setState(() => _tab = i),
+        onDestinationSelected: (i) {
+          setState(() => _tab = i);
+          if (i == 1) scope.zettel.sync();
+        },
         destinations: const [
           NavigationDestination(icon: Icon(Icons.local_offer_outlined), label: 'Treffer'),
           NavigationDestination(icon: Icon(Icons.checklist), label: 'Zettel'),

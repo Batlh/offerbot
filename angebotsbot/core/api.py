@@ -189,6 +189,7 @@ class ApiServer:
         unread = sum(1 for r in self.db.matches() if not r["seen"])
         last = max((r["last_run"] or "" for r in self.db.status().values()), default="")
         return {"app": "AngebotsBot", "version": __version__, "api": API_VERSION, "unread": unread,
+                "checks": self.actions["checks"]() if "checks" in self.actions else [],
                 "last_run": last, "watchlist": len(self.config.watchlist)}
 
     def treffer(self, q, body):
