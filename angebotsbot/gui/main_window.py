@@ -7,7 +7,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QCloseEvent
 from PySide6.QtWidgets import (QApplication, QDialog, QLabel, QMainWindow, QMenu, QPlainTextEdit, QProgressBar,
-                               QSystemTrayIcon, QTabWidget, QToolBar, QVBoxLayout)
+                               QSystemTrayIcon, QTextBrowser, QDialogButtonBox, QTabWidget, QToolBar, QVBoxLayout)
 
 from .. import APP_NAME, __version__
 from ..core.config import Config
@@ -84,6 +84,12 @@ class MainWindow(QMainWindow):
         self.matches_tab.open_prospekt.connect(self.open_prospekt)
         self.watch_tab.changed.connect(self.matches_tab.refresh_watch_filter)
 
+        help_menu = self.menuBar().addMenu("Hilfe")
+        help_menu.addAction("Hilfe zum aktuellen Tab", self.show_tab_help).setShortcut("F1")
+        help_menu.addAction("Erste Schritte", lambda: self.show_help("Erste Schritte"))
+        if self.config.first_start:
+            QTimer.singleShot(0, self, lambda: self.show_help("Erste Schritte"))
+
         # Infobereich
         self.tray = QSystemTrayIcon(app_icon(), self)
         menu = QMenu()
@@ -117,6 +123,34 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(1500, lambda: self.run_now())
 
     # ---------------------------------------------------------------- Hilfen
+    def show_tab_help(self):
+        name = self.tabs.tabText(self.tabs.currentIndex()).split(" (")[0]
+        self.show_help(name)
+
+    def show_help(self, name):
+        import re
+        readme = (Path(__file__).resolve().parents[2] / "README.md").read_text(encoding="utf-8")
+        sections = dict(re.findall(r"^#{2,3} (.+?)\n(.*?)(?=^#{2,3} |\Z)", readme, re.M | re.S))
+        overview = sections["So benutzt du ihn"]
+        entries = re.split(r"^\d+\. ", overview, flags=re.M)
+        text = next((entry.strip() for entry in entries if entry.startswith(f"**{name}**")), "")
+        topics = {"Watchlist": ["Stichwort-Regeln"], "Treffer": ["Grundpreise und „Preis-Check“"],
+                  "Quellen": ["Region"], "Einstellungen": ["Region", "KI (umschaltbar)", "Handy und Wochenbericht"],
+                  "Protokoll": ["Fehlersuche"], "Erste Schritte": ["Erste Schritte"]}
+        for topic in topics.get(name, []):
+            text += f"\n\n### {topic}\n{sections[topic]}"
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Hilfe – {name}")
+        dialog.resize(650, 450)
+        layout = QVBoxLayout(dialog)
+        view = QTextBrowser(dialog)
+        view.setMarkdown(text)
+        layout.addWidget(view)
+        buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        dialog.exec()
+
     def log(self, msg: str):
         line = f"{datetime.now():%H:%M:%S}  {msg}"
         # kann aus Hintergrund-Threads kommen → in GUI-Thread schieben

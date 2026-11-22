@@ -194,6 +194,7 @@ class Config:
         self.settings: dict[str, Any] = copy.deepcopy(DEFAULT_SETTINGS)
         self.watchlist: list[WatchItem] = []
         self.sources: list[Source] = []
+        self.first_start = not self.path.exists()
         self.load()
 
     def load(self) -> None:

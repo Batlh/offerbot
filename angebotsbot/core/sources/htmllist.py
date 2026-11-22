@@ -45,6 +45,13 @@ def run(ctx: RunContext, source: Source) -> list[Offer]:
     if not url:
         raise ValueError("Keine URL eingetragen")
     per_watch = bool(st.get("per_watch")) or "{query}" in url
+    api_shop = (st.get("api_shop") or "").strip()
+    if api_shop and per_watch:
+        from .store_api import StoreApiUnavailable, search
+        try:
+            return search(ctx, source, api_shop)
+        except StoreApiUnavailable:
+            ctx.log(f"{source.name}: Store API fehlt (HTTP 404), verwende die konfigurierte HTML-Suche.")
     if not per_watch:
         return parse_list(ctx.fetcher.get(url), url, st, source)
     out: list[Offer] = []
@@ -61,6 +68,8 @@ def run(ctx: RunContext, source: Source) -> list[Offer]:
 
 LIST_FIELDS = [
     FieldSpec("url", "Seiten-URL", help="Angebotsseite oder Suche; {query} = Suchtext der Watchlist, {ort}/{plz} = deine Region"),
+    FieldSpec("api_shop", "WooCommerce-Shop für API-Vorrang (optional)",
+              help="Bei einer Watchlist-Suche zuerst die Store API dieses Shops verwenden. Nur bei fehlendem Endpunkt (404) die HTML-Suche laden."),
     FieldSpec("item_selector", "Selektor: ein Angebot", help="CSS-Selektor für jeden Angebots-Block, z. B. article.product"),
     FieldSpec("title_selector", "Selektor: Titel"),
     FieldSpec("price_selector", "Selektor: Preis"),

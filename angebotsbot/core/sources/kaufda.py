@@ -10,6 +10,7 @@ import re
 from datetime import datetime
 from urllib.parse import quote
 
+from ..matcher import find_matches
 from ..models import Offer, Source
 from ..net import FetchError
 from .base import FieldSpec, RunContext, SourceType, register
@@ -117,12 +118,20 @@ def run_portal(ctx: RunContext, source: Source, portal: str) -> list[Offer]:
     missing: list[str] = []
     wrong_loc = ""
 
+    seen_merchants: set[str] = set()
+
+    def select_offers(offers: list[Offer]) -> list[Offer]:
+        seen_merchants.update(o.merchant for o in offers if o.merchant)
+        if allowed:
+            offers = [o for o in offers if any(a in o.merchant.lower() for a in allowed)]
+        return offers[:max_results]
+
     def collect(slugs: list[str], kind: str, watch_id: str = "") -> bool:
         nonlocal wrong_loc
         urls = [f"{base}/{ort_slug}/{path}/{quote(s)}" for s in slugs]
         if national:  # Fallback: landesweite Seite (z. B. bonial.fr/Promos/Beurre)
             urls += [f"{base}/{path}/{quote(s)}" for s in slugs]
-        for url in urls:
+        for url in dict.fromkeys(urls):
             if ctx.cancel():
                 return False
             html_text = _get(ctx, url, browser)
@@ -131,14 +140,13 @@ def run_portal(ctx: RunContext, source: Source, portal: str) -> list[Offer]:
             offers, city = parse_page(html_text, url, source, kind)
             if city and city.lower() != ort.lower() and f"/{ort_slug}/" in url:
                 wrong_loc = city
-            for o in offers[:max_results]:
-                if allowed and not any(a in o.merchant.lower() for a in allowed):
-                    continue
+            for o in select_offers(offers):
                 if f"/{ort_slug}/" not in url:
                     o.info = ("landesweit · " + o.info).strip(" ·")
                 o.watch_id = watch_id
                 out.append(o)
-            return True
+            if offers:
+                return True
         return False
 
     for thema in [t.strip() for t in (st.get("themen") or "").split(",") if t.strip()]:
@@ -159,11 +167,11 @@ def run_portal(ctx: RunContext, source: Source, portal: str) -> list[Offer]:
             if html_text is None:
                 continue
             offers, _city = parse_page(html_text, url, source, "prospekt")
-            for o in offers[:max_results]:
+            for o in select_offers(offers):
                 o.watch_id = wid
                 o.info = ("bundesweit · " + o.info).strip(" ·")
                 out.append(o)
-            if wid:
+            if wid and offers:
                 done_watch.add(wid)
     for w in ctx.watchlist:
         if w.enabled and w.in_prospekte and w.search_online:
@@ -171,6 +179,10 @@ def run_portal(ctx: RunContext, source: Source, portal: str) -> list[Offer]:
             if not collect(slug_candidates(q), "prospekt", w.id):
                 missing.append(q)
     name = "kaufDA" if portal == "kaufda" else "Bonial"
+    matched = {o.merchant for o, _ in find_matches(out, ctx.watchlist, float(ctx.settings.get("min_temperature") or 0))}
+    without = sorted(seen_merchants - matched)
+    ctx.log(f"{name}: {len(seen_merchants)} Händler gefunden, {len(without)} ohne Watchlist-Treffer. "
+            f"Gefunden: {', '.join(sorted(seen_merchants)) or '–'}. Ohne Treffer: {', '.join(without) or '–'}.")
     if missing:
         ctx.log(f"{name}: keine eigene Seite für {', '.join(missing)} – im Watchlist-Eintrag einen einfacheren "
                 f"Suchtext (ein Wort{', auf Französisch' if portal == 'bonial' else ''}) eintragen")

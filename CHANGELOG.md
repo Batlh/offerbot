@@ -3,6 +3,12 @@
 Alle Versionen des AngebotsBot (offerbot). Die neueste steht oben.
 Jede Release auf GitHub enthält die fertige Windows-Version als ZIP (`AngebotsBot-windows.zip`).
 
+## 1.10.4 – 2026-11-22
+### Neu
+- Kontexthilfe und Erste Schritte im Programm, Händlerstatistik für kaufDA und WooCommerce-Produktsuche über die öffentliche Store API.
+### Behoben
+- Der Händlerfilter greift vor dem Seitenlimit, auch bei zusätzlichen bundesweiten Händlern.
+
 ## 1.10.3 – 2026-11-22
 ### Geändert
 - Android installiert die APK mit dem neuen Paketnamen `io.github.batlh.offerbot` als separate App.
