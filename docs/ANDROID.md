@@ -1,6 +1,6 @@
 # Android-Version – Plan und Checkpoint
 
-Stand: 17.11.2026, Version 1.10.0 · Status: **A umgesetzt**, Einkaufsliste auch ohne PC, B als Option vorgemerkt
+Stand: 22.11.2026, Version 1.10.5 · Status: **A umgesetzt**, Einkaufsliste auch ohne PC, B als Option vorgemerkt
 
 ## Ausgangslage
 
@@ -70,14 +70,18 @@ optional eigene Quellen direkt auf dem Handy (mydealz, kaufDA, Bonial, Lidl – 
 7. [ ] Test auf dem Handy im WLAN (Nutzer)
 8. [x] Einkaufsliste eigenständig (1.10): liegt auf dem Handy, Abgleich mit dem PC (`/api/zettel/sync`, neuere
    Änderung gewinnt, Löschen als Grabstein), Mengen, Kategorien, mehrere Listen, Teilen, Modus „ohne PC“
-9. [ ] Geplant: Captcha/Prüfung vom Handy aus lösen (wenn man nicht am PC sitzt). Hinweis „<Seite> braucht
-   eine Prüfung“ in der App → „Jetzt lösen“. Weg 1: Seite im eingebauten Browser der App öffnen, Nutzer löst,
-   Cookies + User-Agent gehen an den PC (`assist.save_sites`); klappt nur, wenn die Freigabe nicht ans Gerät
-   gebunden ist (im selben WLAN am wahrscheinlichsten). Weg 2 (Ausweichlösung): sichtbaren Browser vom PC als
-   Bilder aufs Handy spiegeln, Tippen = Klick. Immer vom Nutzer selbst gelöst, nie umgangen. Unterwegs nur mit
-   Zugang ins Heimnetz (z. B. VPN).
-10. [ ] Später: Offline-Treffer, Benachrichtigungen in der App, App-Symbol, gemeinsame Liste mit einer
-   zweiten Person (bräuchte einen Server oder den PC als Treffpunkt)
+9. [x] Die geöffnete App meldet ausstehende Prüfungen mit Quellenname. Wer seinen PC per Remotedesktop erreichen kann, öffnet die bereits eingerichtete Fernzugriffs-App und löst die Prüfung im sichtbaren Browser des PCs. Der PC-Bot übernimmt anschließend wie bisher den erneuten Quellenabruf. Für den Zugriff von unterwegs ist eine bestehende sichere Verbindung ins Heimnetz erforderlich.
+10. [x] Treffer vom letzten erfolgreichen Abruf sind auf dem gekoppelten Handy offline lesbar, einschließlich des Filters „Nur neue“. Prospektseiten benötigen weiterhin den PC.
+11. [x] Die geöffnete App prüft den PC-Status beim Zurückkehren und minütlich. Steigt die Zahl ungelesener Treffer, erscheint eine Meldung mit „Ansehen“. Für Meldungen bei geschlossener App dienen die vorhandenen ntfy-/Telegram-Kanäle.
+12. [x] Android-Startsymbol mit Preisschild und Haken.
+13. [x] Gemeinsame Liste über den PC: Beide Personen koppeln ihre App mit demselben PC und wählen denselben Listennamen. Beim Öffnen des Zettel-Tabs, beim Bearbeiten und minütlich im geöffneten Zettel wird abgeglichen. Beide Kopplungen gewähren vollen Bot-Zugriff.
+
+### Noch am Gerät prüfen
+
+- APK installieren, Symbol im Launcher kontrollieren, PC-Code im WLAN scannen.
+- Treffer laden, WLAN abschalten, App neu öffnen, gespeicherte Treffer und „Nur neue“ prüfen.
+- Zwei Handys koppeln. Einen Eintrag auf Handy A hinzufügen, auf B abhaken, auf A nach dem Abgleich kontrollieren.
+- Eine tatsächlich vom Anbieter angeforderte Prüfung über die eingerichtete Fernverbindung manuell lösen. Den anschließenden Prüflauf am PC kontrollieren.
 
 ### Hinweise
 - Signatur: fester Schlüssel `app/ci/offerbot.keystore` (liegt offen im Repo, private App ohne Store), damit

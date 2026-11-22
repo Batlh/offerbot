@@ -20,8 +20,8 @@ jobs:
       run:
         working-directory: app
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
@@ -45,7 +45,7 @@ jobs:
             echo "Neuer Versuch in 30 Sekunden"; sleep 30
           done
           mv build/app/outputs/flutter-apk/app-release.apk ../AngebotsBot.apk
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: android-apk
           path: AngebotsBot.apk
@@ -57,11 +57,11 @@ jobs:
     if: ${{ !cancelled() }}   # Windows-Version kommt auch, wenn die APK einmal scheitert
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0   # für Tags und die Liste der Änderungen
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -83,14 +83,14 @@ jobs:
           Copy-Item README.md, CHANGELOG.md dist/AngebotsBot/
           Compress-Archive -Path dist/AngebotsBot -DestinationPath AngebotsBot-windows.zip
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: AngebotsBot-windows
           path: AngebotsBot-windows.zip
           retention-days: 30
 
       - name: APK aus dem Android-Build holen
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         continue-on-error: true
         with:
           name: android-apk
@@ -137,7 +137,7 @@ jobs:
 
       - name: Release veroeffentlichen
         if: github.event_name != 'pull_request'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.rel.outputs.tag }}
           name: ${{ steps.rel.outputs.name }}

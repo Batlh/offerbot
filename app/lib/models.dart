@@ -74,6 +74,13 @@ class Offer {
         hit: j['hit'] == true,
       );
 
+  Map<String, dynamic> toJson() => {
+    'uid': uid, 'title': title, 'price': price, 'old_price': oldPrice, 'ref_price': refPrice,
+    'merchant': merchant, 'kind': kind, 'url': url, 'prospekt_id': prospektId, 'page': page,
+    'base': base, 'unit_price': unitPrice, 'valid_from': validFrom, 'valid_to': validTo,
+    'info': info, 'source': source, 'watch_name': watchName, 'seen': seen, 'hit': hit,
+  };
+
   /// Grundpreis zum Anzeigen: berechnet, sonst Angabe aus dem Prospekt.
   String get baseText => base.isNotEmpty ? base : unitPrice;
 
@@ -272,10 +279,12 @@ class Status {
   final int unread;
   final String lastRun;
 
-  const Status({this.version = '', this.unread = 0, this.lastRun = ''});
+  final List<String> checks;
+  const Status({this.version = '', this.unread = 0, this.lastRun = '', this.checks = const []});
 
   factory Status.fromJson(Map<String, dynamic> j) =>
-      Status(version: _s(j['version']), unread: (j['unread'] as int?) ?? 0, lastRun: _s(j['last_run']));
+      Status(version: _s(j['version']), unread: (j['unread'] as int?) ?? 0, lastRun: _s(j['last_run']),
+          checks: (j['checks'] as List? ?? const []).whereType<String>().toList());
 }
 
 /// Verbindung zum PC: aus dem QR-Code `angebotsbot://verbinden?url=http://…:8765&key=…`.

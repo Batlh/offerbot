@@ -3,6 +3,13 @@
 Alle Versionen des AngebotsBot (offerbot). Die neueste steht oben.
 Jede Release auf GitHub enthält die fertige Windows-Version als ZIP (`AngebotsBot-windows.zip`).
 
+## 1.10.5 – 2026-11-22
+### Neu
+- Die Android-App merkt sich Treffer für unterwegs, meldet neue Treffer bei geöffneter App und zeigt ausstehende Website-Prüfungen an. Zwei gekoppelte Handys können Listen über denselben PC abgleichen.
+- Eigenes Android-Startsymbol für AngebotsBot.
+### Geändert
+- Die GitHub-Actions für Checkout, Java, Python, Artefakte und Releases verwenden Node.js 24.
+
 ## 1.10.4 – 2026-11-22
 ### Neu
 - Kontexthilfe und Erste Schritte im Programm, Händlerstatistik für kaufDA und WooCommerce-Produktsuche über die öffentliche Store API.

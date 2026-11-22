@@ -60,7 +60,7 @@ class _SetupPageState extends State<SetupPage> {
         children: [
           const Text(
             'Am PC im AngebotsBot: Einstellungen → Handy-App → Schnittstelle einschalten, speichern und '
-            '„QR-Code anzeigen“. Handy und PC müssen im selben WLAN sein.',
+            '„QR-Code anzeigen“. Für gemeinsame Listen scannen beide Handys denselben PC-Code. Beide erhalten vollen Zugriff auf diesen Bot. Handy und PC müssen im selben WLAN sein.',
           ),
           const SizedBox(height: 20),
           FilledButton.icon(

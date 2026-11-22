@@ -22,11 +22,13 @@ class Store {
   }
 
   Future<void> saveConnection(Connection c) async {
+    if (connection?.url != c.url || connection?.key != c.key) await prefs.remove(_kTreffer);
     await prefs.setString(_kUrl, c.url);
     await prefs.setString(_kKey, c.key);
   }
 
   Future<void> clearConnection() async {
+    await prefs.remove(_kTreffer);
     await prefs.remove(_kUrl);
     await prefs.remove(_kKey);
   }
@@ -39,8 +41,12 @@ class Store {
   List<Map<String, dynamic>> get cachedTrefferJson {
     final raw = prefs.getString(_kTreffer);
     if (raw == null) return [];
-    return (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
+    final value = jsonDecode(raw);
+    final rows = value is Map ? value['items'] : value;
+    return (rows as List).cast<Map<String, dynamic>>();
   }
+
+  bool get hasCachedTreffer => prefs.containsKey(_kTreffer);
 
   Future<void> cacheTrefferJson(List<Map<String, dynamic>> items) => prefs.setString(_kTreffer, jsonEncode(items));
 }
