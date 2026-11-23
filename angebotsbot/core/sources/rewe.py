@@ -85,6 +85,78 @@ def pdf_links(html, base):
         yield from configured_links(config)
 
 
+def click_pdf_download(context, final, html, headers, get, cancelled):
+    """Öffentlichen Viewer rendern und dessen sichtbare Download-Funktion auslösen."""
+    from pathlib import Path
+    from time import monotonic
+    received = []
+    downloads = []
+    errors = []
+    first_document = True
+    clicked = False
+    selected_pdf = False
+
+    def serve(route):
+        nonlocal first_document
+        url = route.request.url
+        if cancelled() or route.request.method != "GET" or route.request.resource_type in ("image", "media", "font"):
+            route.abort()
+            return
+        try:
+            if first_document and url == final:
+                first_document = False
+                body, metadata = html, headers
+            else:
+                resolved, body, metadata = get(url)
+                if resolved != url:
+                    # Der Browser muss bei einem Ursprungswechsel den neuen Ursprung verwenden.
+                    raise FetchError("Der Viewer verweist beim Rendern auf eine andere Ressourcenadresse.")
+            if clicked and body.startswith(b"%PDF-"):
+                received.append(body)
+            route.fulfill(body=body, headers={k: v for k, v in metadata.items()
+                          if k.lower() not in ("content-length", "content-encoding", "transfer-encoding", "set-cookie")})
+        except Exception as error:
+            if route.request.is_navigation_request() or clicked:
+                errors.append(str(error))
+            route.abort()
+
+    context.route("**/*", serve)
+    context.on("page", lambda p: p.on("download", lambda d: downloads.append(d)))
+    page = context.new_page()
+    page.goto(final, wait_until="domcontentloaded", timeout=30000)
+    label = re.compile(r"download|herunterladen|pdf speichern", re.I)
+    deadline = monotonic() + 15
+    while not cancelled() and monotonic() < deadline:
+        if received:
+            return received[0]
+        if downloads:
+            path = downloads[0].path()
+            if path:
+                return Path(path).read_bytes()
+            break
+        if errors:
+            raise FetchError(errors[0])
+        if clicked and not selected_pdf:
+            for frame in page.frames:
+                options = frame.get_by_role("menuitem", name=re.compile(r"PDF", re.I)).or_(
+                    frame.get_by_role("link", name=re.compile(r"^PDF$|gesamte.*PDF|vollständige.*PDF", re.I)))
+                option = next((item for item in options.all() if item.is_visible()), None)
+                if option is not None:
+                    selected_pdf = True
+                    option.click(timeout=5000)
+                    break
+        elif not clicked:
+            for frame in page.frames:
+                buttons = frame.get_by_role("button", name=label).or_(frame.get_by_role("link", name=label))
+                control = next((b for b in buttons.all() if b.is_visible()), None)
+                if control is not None:
+                    clicked = True
+                    control.click(timeout=5000)
+                    break
+        page.wait_for_timeout(200)
+    raise FetchError("Im Blätterkatalog wurde kein abrufbarer PDF-Download gefunden.")
+
+
 def fetch_brochure_pdf(ctx, viewer):
     from playwright.sync_api import sync_playwright
     from ..browser_setup import launch, prepare_env
@@ -92,7 +164,8 @@ def fetch_brochure_pdf(ctx, viewer):
     with sync_playwright() as playwright:
         browser = launch(playwright, ctx.settings, ctx.log, headless=True)
         try:
-            request = browser.new_context(locale="de-DE").request
+            context = browser.new_context(locale="de-DE", accept_downloads=True, service_workers="block")
+            request = context.request
 
             def get(url):
                 for _ in range(6):
@@ -106,19 +179,19 @@ def fetch_brochure_pdf(ctx, viewer):
                             continue
                         if not response.ok:
                             raise FetchError(f"Prospektanbieter antwortet mit HTTP {response.status}.")
-                        return url, response.body()
+                        return url, response.body(), response.headers
                     finally:
                         response.dispose()
                 raise FetchError("Zu viele Weiterleitungen des Prospektanbieters.")
 
-            final, body = get(viewer)
-            if body.startswith(b"%PDF-"):
-                return body
-            for link in dict.fromkeys(pdf_links(body, final)):
-                _, body = get(link)
+            final, html, headers = get(viewer)
+            if html.startswith(b"%PDF-"):
+                return html
+            for link in dict.fromkeys(pdf_links(html, final)):
+                _, body, _ = get(link)
                 if body.startswith(b"%PDF-"):
                     return body
-            raise FetchError("Kein öffentlicher PDF-Download im abgerufenen Katalogdokument gefunden.")
+            return click_pdf_download(context, final, html, headers, get, ctx.cancel)
         finally:
             browser.close()
 

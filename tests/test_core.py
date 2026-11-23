@@ -953,3 +953,33 @@ def test_rewe_browser_uebernimmt_pdf(env, monkeypatch):
     assert pid and db.prospekt(pid)["title"] == "Wochenprospekt"
     with pymupdf.open(db.prospekt(pid)["pdf_path"]) as saved:
         assert saved.page_count == 1
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Edge-Test unter Windows")
+def test_wochenprospekt_browser_klickt_download_selbst(env):
+    from playwright.sync_api import sync_playwright
+    from angebotsbot.core.browser_setup import launch, prepare_env
+    from angebotsbot.core.sources.rewe import click_pdf_download
+    cfg, _, _ = env
+    prepare_env()
+    url = "https://viewer.example/woche"
+    html = b"""<button hidden onclick="location.href='/prospekt'">PDF herunterladen</button>
+               <script>setTimeout(() => document.querySelector('button').hidden=false, 100)</script>"""
+    with pymupdf.open() as document:
+        document.new_page()
+        pdf = document.tobytes()
+    calls = []
+    def get(target):
+        if target.endswith("/favicon.ico"):
+            return target, b"", {"content-type": "image/x-icon"}
+        calls.append(target)
+        assert target == "https://viewer.example/prospekt"
+        return target, pdf, {"content-type": "application/pdf", "content-disposition": "attachment"}
+    with sync_playwright() as pw:
+        browser = launch(pw, cfg.settings, headless=True)
+        try:
+            ctx = browser.new_context(accept_downloads=True, service_workers="block")
+            actual = click_pdf_download(ctx, url, html, {"content-type": "text/html"}, get, lambda: False)
+        finally:
+            browser.close()
+    assert calls == ["https://viewer.example/prospekt"] and actual == pdf
