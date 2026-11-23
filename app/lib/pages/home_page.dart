@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../data/zettel.dart';
@@ -101,7 +102,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   void _menu(String v) {
     final scope = AppScope.of(context);
-    if (v == 'suche') {
+    if (v == 'update') {
+      const MethodChannel('offerbot/updates').invokeMethod<void>('check');
+    } else if (v == 'suche') {
       showSearch(context: context, delegate: OfferSearch());
     } else if (v == 'trennen') {
       scope.disconnect();
@@ -127,6 +130,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             PopupMenuButton<String>(
               onSelected: _menu,
               itemBuilder: (_) => const [
+                PopupMenuItem(value: 'update', child: Text('Nach App-Update suchen')),
                 PopupMenuItem(value: 'verbinden', child: Text('Mit AngebotsBot am PC verbinden')),
               ],
             ),
@@ -149,6 +153,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           PopupMenuButton<String>(
             onSelected: _menu,
             itemBuilder: (_) => const [
+              PopupMenuItem(value: 'update', child: Text('Nach App-Update suchen')),
               PopupMenuItem(value: 'suche', child: Text('In allen Angeboten suchen')),
               PopupMenuItem(value: 'trennen', child: Text('Vom PC trennen')),
             ],

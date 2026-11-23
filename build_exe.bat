@@ -3,7 +3,7 @@ rem Baut eine eigenstaendige AngebotsBot.exe (Ordner dist\AngebotsBot) - Python 
 cd /d "%~dp0"
 call .venv\Scripts\activate.bat || (echo Bitte zuerst setup.bat ausfuehren & pause & exit /b 1)
 python -m pip install pyinstaller
-pyinstaller --noconfirm --windowed --name AngebotsBot --collect-all rapidocr_onnxruntime --collect-all playwright --collect-data pymupdf --add-data "README.md:." main.py
+pyinstaller --noconfirm --windowed --name AngebotsBot --collect-all rapidocr_onnxruntime --collect-all playwright --collect-data pymupdf --add-data "README.md:." --add-data "angebotsbot/core/install_update.ps1:angebotsbot/core" main.py
 echo.
 echo Fertig: dist\AngebotsBot\AngebotsBot.exe  (Daten liegen dann in dist\AngebotsBot\data)
 pause

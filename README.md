@@ -30,6 +30,13 @@ Optional:
 3. **Alles jetzt prüfen** starten. Im **Protokoll** den Lauf verfolgen und unter **Treffer** die passenden Angebote öffnen.
 4. Für die Android-App in den Einstellungen die Handy-Schnittstelle im eigenen WLAN einschalten, speichern und den QR-Code mit der App scannen.
 
+## Automatische Updates ab 1.10.7
+
+Die veröffentlichte Windows-App und die Android-App prüfen beim Öffnen und bei laufender App alle sechs Stunden das neueste stabile GitHub-Release von Batlh/offerbot. Beide prüfen die SHA-256-Prüfsumme ihrer Datei. Die erste Version mit Updater muss einmal von Hand installiert werden.
+
+- **Windows:** Das ZIP wird im Hintergrund geladen und vorbereitet. Beim vollständigen Beenden übernimmt der Updater EXE, Programmbibliotheken und mitgelieferte Hilfedateien. Der eigene Ordner `data` bleibt erhalten. Das Schließen in den Infobereich lässt den Bot weiterlaufen. Unter **Hilfe** kannst du die Prüfung sofort starten und bei bereitstehendem Update direkt neu starten.
+- **Android:** Die App prüft zusätzlich Paketname, Buildnummer und Signatur. Android kann einmalig „Apps aus dieser Quelle zulassen“ verlangen. Ab Android 12 fordert die App eine automatische Selbstaktualisierung an. Wenn Android eine Bestätigung verlangt, öffnet sich der Systemdialog. Die Prüfung funktioniert auch ohne PC-Kopplung. Im App-Menü gibt es **Nach App-Update suchen**.
+
 ## So benutzt du ihn
 
 1. **Watchlist**: Was du suchst. Name, Stichwörter, Höchstpreis, optional Mindest-Rabatt.
