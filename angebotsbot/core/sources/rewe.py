@@ -75,7 +75,7 @@ def open_brochure(settings, market_url, viewer, db, log, cancelled):
             context = browser.new_context(locale="de-DE", accept_downloads=True)
             downloads = []
             def listen(page):
-                page.on("download", downloads.append)
+                page.on("download", lambda download: downloads.append(download))
             context.on("page", listen)
             page = context.new_page()
             page.goto(viewer or market_url, wait_until="domcontentloaded", timeout=60000)
