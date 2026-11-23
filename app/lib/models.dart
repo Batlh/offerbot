@@ -258,7 +258,10 @@ class Prospekt {
   final String validFrom;
   final String validTo;
 
+  final String viewerUrl;
+
   const Prospekt({
+    this.viewerUrl = '',
     required this.id,
     required this.retailer,
     required this.title,
@@ -269,6 +272,7 @@ class Prospekt {
 
   factory Prospekt.fromJson(Map<String, dynamic> j) => Prospekt(
         id: j['id'] as int,
+        viewerUrl: _s(j['viewer_url']),
         retailer: _s(j['retailer']),
         title: _s(j['title']),
         pages: (j['pages'] as int?) ?? 0,

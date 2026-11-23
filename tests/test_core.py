@@ -842,3 +842,41 @@ def test_suchprofil_import(env):
     assert offer_matches(Offer("s", "S", "Winterjacke"), broad)
     broad.active_to = "2000-11-30"
     assert not offer_matches(Offer("s", "S", "Winterjacke"), broad)
+
+
+def test_filialprospekt_auswahl_und_vorschau(env):
+    from angebotsbot.core.prospekte.filialen import run
+    from angebotsbot.core.sources import RunContext
+    from angebotsbot.core.models import Source
+    cfg, db, _ = env
+    base = "https://www.kaufda.de/Filialen/Trier/"
+    cid = "fa043f92-9a13-4c75-96fc-a28fd63dc43e"
+    item = {"type": "BROCHURE", "title": "Testwoche", "contentId": cid,
+            "validFrom": "2099-11-22T23:00:00.000+0000", "validUntil": "2099-11-28T22:00:00.000+0000",
+            "pageCount": 24, "pages": [{"page": 1, "url": {"large": "https://content-media.bonial.biz/cover.jpg"}}]}
+    pi = {"store": {"publicId": "11", "name": "REWE", "street": "Simeonstraße", "houseNumber": "15"},
+          "brochures": {"viewer": [item], "sector": [dict(item, title="Fremder Prospekt")]}}
+    html = '<script id="__NEXT_DATA__">' + json.dumps({"props": {"pageProps": {"pageInformation": pi}}}) + '</script>'
+    listing = '<meta charset="utf-8"><a href="/Filialen/Trier/Markt/v-f11">REWE Simeonstraße 15 Trier</a><a href="/Filialen/Trier/Markt/v-f12">REWE Simeonstraße 150 Trier</a>'
+    class Filialseiten:
+        def public_file(self, url):
+            if url.endswith("/REWE/v-r101"):
+                return listing.encode()
+            assert url == base + "Markt/v-f11"
+            return html.encode()
+
+    logs = []
+    ctx = RunContext(Filialseiten(), db, cfg.settings, [], log=logs.append, extra={"dry_run": True})
+    src = Source("REWE", "filialprospekt", {"ort": "Trier", "filiale": "Simeonstr. 15"})
+    run(ctx, src)
+    assert any("1 von 24" in line and "2099-11-23" in line for line in logs)
+    assert not any("Fremder Prospekt" in line for line in logs)
+    assert not db.prospekte()
+    src.settings["filiale"] = "Simeonstraße"
+    with pytest.raises(ValueError, match="eindeutige Straße"):
+        run(ctx, src)
+    src.settings["filiale"] = base + "Markt/v-f11"
+    pi["store"]["publicId"] = "12"
+    html = '<script id="__NEXT_DATA__">' + json.dumps({"props": {"pageProps": {"pageInformation": pi}}}) + '</script>'
+    with pytest.raises(ValueError, match="Filialkennung"):
+        run(ctx, src)

@@ -5,6 +5,7 @@ Jede Release auf GitHub enthält die fertige Windows-Version als ZIP (`AngebotsB
 
 ## 1.10.6 – 2026-11-23
 ### Neu
+- Filialprospekte mit frei wählbarer Marktadresse für REWE und weitere Händler, lokaler Seitenvorschau und Online-Blätterprospekt.
 - Suchprofile mit Produktregeln, regionalen kaufDA-Quellen, belegten Angeboten und einem zeitlich begrenzten branchenoffenen Dealfilter importieren.
 ### Behoben
 - Abgelaufene Angebote verschwinden nach dem letzten gültigen Tag aus Angebotsliste und Treffern. Einkaufszettel und Preisverlauf bleiben erhalten.

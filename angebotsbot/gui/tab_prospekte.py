@@ -117,6 +117,8 @@ class ProspekteTab(QWidget):
         self.b_reindex = QPushButton("Neu einlesen (OCR)")
         self.b_ai = QPushButton("KI-Auswertung")
         self.b_del = QPushButton("Löschen")
+        self.b_online = QPushButton("Vollständigen Prospekt online öffnen")
+        self.b_online.setEnabled(False)
         self.b_folder = QPushButton("Ordner öffnen")
         for b in (self.b_fetch, self.b_import, self.b_reindex, self.b_ai, self.b_del, self.b_folder):
             bar.addWidget(b)
@@ -139,6 +141,8 @@ class ProspekteTab(QWidget):
         self.view, self.model, _ = make_table(cols, self)
         self.view.sortByColumn(0, Qt.AscendingOrder)
         ll.addWidget(self.view, 3)
+        ll.addWidget(self.b_online)
+        self.b_online.clicked.connect(self.open_online)
         self.search = QLineEdit(placeholderText="In allen Prospekten suchen (z. B. kaffee) …")
         ll.addWidget(self.search)
         self.hits = QListWidget()
@@ -234,8 +238,14 @@ class ProspekteTab(QWidget):
         else:
             open_url(url)
 
+    def open_online(self):
+        rows = selected_rows(self.view)
+        if rows and rows[0]["url"].startswith("https://www.kaufda.de/contentViewer/static/"):
+            open_url(rows[0]["url"].split("#")[0])
+
     def open_selected(self):
         rows = selected_rows(self.view)
+        self.b_online.setEnabled(bool(rows and rows[0]["url"].startswith("https://www.kaufda.de/contentViewer/static/")))
         if rows:
             r = rows[0]
             if Path(r["pdf_path"]).exists():

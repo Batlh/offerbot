@@ -90,6 +90,12 @@ Unter **Suchprofile → Suchaufträge importieren** eine vorbereitete Offerbot-J
 
 Die importierten Artikel erscheinen in der Watchlist und werden bei normalen Prüfläufen mit den aktivierten Quellen abgeglichen. Zusätzliche Ortsquellen stehen im Tab Quellen. Ein branchenoffener Radar ordnet Deals innerhalb seines Zeitraums unabhängig vom Produktnamen zu. Die Zeitpläne und Berichte der ursprünglichen ChatGPT-Aufgaben verbleiben in ChatGPT. Der Import aktiviert keine zusätzliche KI-Recherche. Direkte Amazon-Prüfungen erfolgen weiterhin auf Knopfdruck. Händler, zu denen keine aktive Quelle Daten liefert, erfordern eine eigene Quelle oder manuelle Prüfung.
 
+## REWE und weitere Filialprospekte
+
+Unter **Quellen → REWE – Filialprospekt** sind Trier und **Simeonstraße 15** voreingestellt. Für einen anderen REWE den Ort eingeben und **Filiale auswählen …** anklicken oder Straße und Hausnummer eintragen, **Testen** wählen, die erkannte Adresse prüfen und **Speichern** klicken. Ein leerer Straßenwert zeigt beim Testen verfügbare Adressen. Alternativ den öffentlichen kaufDA-Link der gewünschten Filiale einfügen (endet auf `/v-f…`). Für einen zweiten Markt die Quelle duplizieren.
+
+Weitere Vorlagen für EDEKA, E center, Netto Marken-Discount, NORMA, METRO, ROSSMANN, dm, Müller, ALDI SÜD, Kaufland und Lidl stehen im selben Tab. Für Trier sind die zusätzlichen Märkte aktiviert. Die Filialvorlagen für ALDI SÜD, Kaufland und Lidl kannst du bei Bedarf zur vorhandenen Händlerquelle hinzuschalten. Über **Neue Quelle → Filialprospekt** lässt sich auch eine andere deutsche kaufDA-Filialseite eintragen. In den Prospekten steht die tatsächlich erkannte Adresse. Bei eingeschränkter Vorschau verarbeitet die lokale Texterkennung nur die bereitgestellten Seiten. Der Knopf **Vollständigen Prospekt online öffnen** führt zum Blätterprospekt des Anbieters.
+
 ## Quellen auswählen
 
 Für mydealz den RSS-Feed auswählen und in der Watchlist „Deals & Shops“, Stichwörter und Höchstpreis setzen.

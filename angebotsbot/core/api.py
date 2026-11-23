@@ -289,6 +289,8 @@ class ApiServer:
     def prospekte(self, q, body):
         return {"items": [{"id": r["id"], "retailer": r["retailer"], "title": r["title"], "pages": r["pages"] or 0,
                            "valid_from": r["valid_from"] or "", "valid_to": r["valid_to"] or "",
+                           "viewer_url": r["url"].split("#")[0] if (r["url"] or "").startswith(
+                               "https://www.kaufda.de/contentViewer/static/") else "",
                            "fetched": r["fetched"] or ""} for r in self.db.prospekte()]}
 
     def prospekt_page(self, pid, page, q, body):

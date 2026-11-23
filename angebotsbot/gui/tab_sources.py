@@ -114,6 +114,9 @@ class SourcesTab(QWidget):
         self.tf = QFormLayout(self.typebox)
         self.rl.addWidget(self.typebox)
         bl2 = QHBoxLayout()
+        self.b_store = QPushButton("Filiale auswählen …")
+        self.b_store.clicked.connect(self.choose_store)
+        self.rl.addWidget(self.b_store)
         self.b_check = QPushButton("Prüfung im Browser lösen")
         self.b_check.setToolTip("Öffnet die Seite in einem Browserfenster – Captcha selbst lösen, der Bot übernimmt die Freigabe")
         self.b_check.clicked.connect(self.solve_check)
@@ -153,6 +156,7 @@ class SourcesTab(QWidget):
         while self.tf.rowCount():
             self.tf.removeRow(0)
         self.field_widgets = {}
+        self.b_store.setVisible(bool(s and s.type == "filialprospekt"))
         for w in (self.name, self.group, self.interval, self.enabled, self.b_save, self.b_test, self.b_run):
             w.setEnabled(s is not None)
         if not s:
@@ -244,6 +248,37 @@ class SourcesTab(QWidget):
             self.main.config.save()
             self.current = None
             self.reload()
+
+    def choose_store(self):
+        from PySide6.QtWidgets import QInputDialog
+        from ..core.net import Fetcher
+        from ..core.prospekte.filialen import list_stores
+        source = self._collect()
+        if not source:
+            return
+        settings = self.main.config.settings
+        city = source.settings.get("ort") or settings.get("region", {}).get("ort", "")
+        chain = source.settings.get("haendler", "REWE")
+        self.b_store.setEnabled(False)
+        task = Task(lambda *_: list_stores(Fetcher(settings), city.strip(), chain), self)
+
+        def done(stores):
+            if not self.current or self.current.id != source.id:
+                return
+            if not stores:
+                QMessageBox.information(self, "Filialauswahl", f"Keine Filiale für {chain} in {city} gefunden.")
+                return
+            # Die Kennung unterscheidet auch Filialen mit gleichem Anzeigenamen.
+            choices = {f"{name} ({url.rsplit('v-f', 1)[-1]})": url for url, name in stores.items()}
+            label, ok = QInputDialog.getItem(self, "Filiale auswählen", f"{chain} in {city}", list(choices), 0, False)
+            if ok:
+                self.field_widgets["filiale"][1].setText(choices[label])
+
+        task.finished_ok.connect(done)
+        task.failed.connect(lambda msg: error_box(self, "Filialauswahl", msg))
+        task.finished.connect(lambda: self.b_store.setEnabled(True))
+        self._store_task = task
+        task.start()
 
     def solve_check(self):
         s = self.current

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:url_launcher/url_launcher.dart';
+
 import '../main.dart';
 import '../models.dart';
 
@@ -53,6 +55,11 @@ class _ProspektePageState extends State<ProspektePage> {
                 if (p.pages > 0) '${p.pages} Seiten',
                 if (p.validTo.isNotEmpty) 'bis ${p.validTo}',
               ].join(' · ')),
+              trailing: p.viewerUrl.isEmpty ? null : IconButton(
+                tooltip: 'Vollständigen Prospekt online öffnen',
+                icon: const Icon(Icons.open_in_browser),
+                onPressed: () => launchUrl(Uri.parse(p.viewerUrl), mode: LaunchMode.externalApplication),
+              ),
               onTap: p.pages == 0
                   ? null
                   : () => Navigator.of(context).push(MaterialPageRoute(

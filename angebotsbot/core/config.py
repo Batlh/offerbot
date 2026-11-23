@@ -130,6 +130,30 @@ def lu_extra_sources() -> list[Source]:
     ]
 
 
+# Händlerkennung und Beispieladresse aus dem öffentlichen Filialverzeichnis in Trier.
+FILIALEN = {
+    "REWE": ("REWE/v-r101", "Simeonstraße 15"),
+    "EDEKA": ("EDEKA/v-r107", "Schöndorfer Straße 24"),
+    "E center": ("E-center/v-r110", "Zurmaiener Straße 160-168"),
+    "Netto Marken-Discount": ("Netto-Marken-Discount/v-r9", "Schöndorfer Straße 84"),
+    "NORMA": ("Norma/v-r78", "Paulinstraße 9-11"),
+    "METRO": ("Metro/v-r287", "Monaiserstraße 1"),
+    "ROSSMANN": ("Rossmann/v-r98", "Ostallee 3-5"),
+    "dm": ("dm-drogerie-markt/v-r104", "Domfreihof 1"),
+    "Müller": ("Mueller/v-r85", "Grabenstraße 17"),
+    "ALDI SÜD": ("ALDI-SUeD/v-r90", "Ostallee 3"),
+    "Kaufland": ("Kaufland/v-r2801", "Ostallee 3-7"),
+    "Lidl": ("Lidl/v-r74", "Matthiasstraße 7-9"),
+}
+
+
+def filialquellen():
+    return [Source(f"{name} – Filialprospekt", "filialprospekt",
+                   {"haendler": name, "ort": "Trier", "filiale": street},
+                   name not in {"ALDI SÜD", "Kaufland", "Lidl"}, "Prospekte", 720)
+            for name, (_, street) in FILIALEN.items()]
+
+
 def default_sources() -> list[Source]:
     return [
         Source("mydealz – Heiß", "rss", {"url": "https://www.mydealz.de/rss/hot"}, True, "Deals"),
@@ -160,6 +184,7 @@ def default_sources() -> list[Source]:
             "max_results": 40,
         }, True, "Prospekte", 360),
         kaufland_source(),
+        *filialquellen(),
         Source("Lidl Prospekte", "prospekt_schwarz", {
             "retailer": "Lidl",
             "start_url": "https://www.lidl.de/c/online-prospekte/s10005610",
@@ -203,7 +228,7 @@ class Config:
                 self.watchlist = default_watchlist()
                 self.sources = default_sources()
                 self.settings["migrations"] = ["1.1-aldi", "1.1-kaufda", "1.4-lu-fr", "1.5-metro-lu", "1.6-kaufland",
-                                               "1.10-ua"]
+                                               "1.10-ua", "1.10.6-filialen"]
                 self.save()
                 return
             raw = json.loads(self.path.read_text(encoding="utf-8"))
@@ -257,6 +282,16 @@ class Config:
             if OLD_DEFAULT_UA.match(self.settings.get("user_agent") or ""):
                 self.settings["user_agent"] = DEFAULT_SETTINGS["user_agent"]
             done.add("1.10-ua")
+            changed = True
+        if "1.10.6-filialen" not in done:
+            existing = {s.settings.get("haendler") for s in self.sources if s.type == "filialprospekt"}
+            for source in filialquellen():
+                if source.settings["haendler"] not in existing:
+                    if self.region().get("ort", "").strip().casefold() != "trier":
+                        source.enabled = False
+                        source.settings.update(ort="", filiale="")
+                    self.sources.append(source)
+            done.add("1.10.6-filialen")
             changed = True
         if changed:
             self.settings["migrations"] = sorted(done)

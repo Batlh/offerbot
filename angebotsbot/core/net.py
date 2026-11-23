@@ -39,18 +39,51 @@ class Fetcher:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.8,*/*;q=0.7",
         })
         self._last: dict[str, float] = {}
+        self._robots = {}
         self.last_url = ""
         self._lock = threading.Lock()
 
-    def _wait(self, url: str) -> None:
+    def _wait(self, url: str, minimum: float = 0) -> None:
         host = urlparse(url).netloc
-        delay = float(self.settings.get("request_delay_s", 1.5))
+        delay = max(minimum, float(self.settings.get("request_delay_s", 1.5)))
         with self._lock:
             last = self._last.get(host, 0.0)
             wait = last + delay - time.time()
             self._last[host] = max(time.time(), last + delay)
         if wait > 0:
             time.sleep(wait)
+
+    def public_file(self, url: str) -> bytes:
+        """Öffentliche Filialseiten und Seitenbilder ohne Cookies oder Weiterleitungen laden."""
+        from protego import Protego
+        host = urlparse(url).netloc
+        if urlparse(url).scheme != "https" or host not in ("www.kaufda.de", "content-media.bonial.biz"):
+            raise FetchError("Unerwarteter Anbieter der Prospektseite.")
+        agent = "Offerbot"
+
+        def request(target, minimum=0):
+            self._wait(target, minimum)
+            response = requests.get(target, headers={"User-Agent": agent}, allow_redirects=False,
+                                    timeout=float(self.settings.get("timeout_s", 20)))
+            if response.is_redirect:
+                raise FetchError(f"Weiterleitung beim Prospektabruf: {target}")
+            return response
+
+        if host not in self._robots:
+            response = request(f"https://{host}/robots.txt")
+            if response.status_code != 404:
+                response.raise_for_status()
+            self._robots[host] = Protego.parse(response.text if response.ok else "")
+        rules = self._robots[host]
+        if not rules.can_fetch(url, agent):
+            raise FetchError(f"robots.txt erlaubt diesen Prospektabruf nicht: {url}")
+        delay = rules.crawl_delay(agent) or 0
+        rate = rules.request_rate(agent)
+        if rate:
+            delay = max(delay, rate.seconds / rate.requests)
+        response = request(url, delay)
+        response.raise_for_status()
+        return response.content
 
     def get(self, url: str, as_json: bool = False, binary: bool = False):
         self._wait(url)
