@@ -71,7 +71,18 @@ def offer_matches(o: Offer, w: WatchItem, min_temperature: float = 0) -> bool:
             return False
     elif not w.in_deals:
         return False
-    if not o.direct:
+    if w.merchant_filter and norm(w.merchant_filter) not in norm(o.merchant):
+        return False
+    if w.active_from or w.active_to:
+        from datetime import date
+        today = date.today().isoformat()
+        if (w.active_from and today < w.active_from) or (w.active_to and today > w.active_to):
+            return False
+    if w.all_deals and o.kind != "deal":
+        return False
+    if w.variant_terms and not text_matches(f"{o.title} {o.info}", w.variant_terms):
+        return False
+    if not o.direct and not w.all_deals:
         if not text_matches(f"{o.title} {o.merchant} {o.category}", w.effective_keywords):
             return False
     if w.max_price is not None and w.max_price > 0:

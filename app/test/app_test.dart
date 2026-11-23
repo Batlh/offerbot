@@ -25,7 +25,7 @@ class FakeSource implements DataSource {
   @override
   Future<List<Offer>> treffer({bool nurUngelesen = false}) async => offline ? throw const SourceException("PC offline") : [
         const Offer(uid: 'a', title: 'Kerrygold Butter 250 g', price: 1.69, oldPrice: 1.99, refPrice: 1.49,
-            merchant: 'Lidl', base: '6,76 €/kg', validTo: '21.11.', watchName: 'Butter', seen: false),
+            merchant: 'Lidl', base: '6,76 €/kg', validTo: '2099-11-21', watchName: 'Butter', seen: false),
       ];
   @override
   Future<void> gelesen(List<String> uids, {bool alle = false}) async {}

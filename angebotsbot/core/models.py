@@ -75,6 +75,12 @@ class WatchItem:
     enabled: bool = True
     id: str = field(default_factory=new_id)
 
+    variant_terms: str = ""
+    merchant_filter: str = ""
+    all_deals: bool = False
+    active_from: str = ""
+    active_to: str = ""
+
     @property
     def search_text(self) -> str:
         return (self.query or self.name).strip()

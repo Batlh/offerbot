@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from .models import Offer, now_iso
+from .validity import active
 from .units import base_price
 from .paths import data_dir
 
@@ -94,6 +95,7 @@ class Database:
         self.path = path or (data_dir() / "angebote.db")
         self._lock = threading.RLock()
         self.conn = sqlite3.connect(str(self.path), check_same_thread=False)
+        self.conn.create_function("offer_active", 2, lambda end, found: active(end, found))
         self.conn.row_factory = sqlite3.Row
         with self._lock:
             self.conn.executescript(SCHEMA)
@@ -147,8 +149,9 @@ class Database:
                 uid = o.uid
                 exists = self.conn.execute("SELECT 1 FROM offers WHERE uid=?", (uid,)).fetchone()
                 if exists:
-                    self.conn.execute("UPDATE offers SET last_seen=?, temperature=COALESCE(?, temperature) WHERE uid=?",
-                                      (ts, o.temperature, uid))
+                    self.conn.execute("UPDATE offers SET last_seen=?, temperature=COALESCE(?, temperature), "
+                                      "valid_to=COALESCE(NULLIF(?, ''), valid_to), info=COALESCE(NULLIF(?, ''), info) WHERE uid=?",
+                                      (ts, o.temperature, o.valid_to, o.info, uid))
                     continue
                 d = o.to_dict()
                 bp = base_price(o.price, o.title, o.unit_price, o.info)
@@ -167,19 +170,22 @@ class Database:
     def add_match(self, offer_uid: str, watch_id: str, watch_name: str) -> bool:
         with self._lock:
             cur = self.conn.execute(
-                "INSERT OR IGNORE INTO matches (offer_uid, watch_id, watch_name, ts) VALUES (?,?,?,?)",
-                (offer_uid, watch_id, watch_name, now_iso()))
+                "INSERT OR IGNORE INTO matches (offer_uid, watch_id, watch_name, ts) "
+                "SELECT uid, ?, ?, ? FROM offers WHERE uid=? AND offer_active(valid_to, found_at)",
+                (watch_id, watch_name, now_iso(), offer_uid))
             self.conn.commit()
             return cur.rowcount > 0
 
     def matches(self, include_hidden: bool = False, limit: int = 2000) -> list[sqlite3.Row]:
-        where = "" if include_hidden else "WHERE m.hidden=0"
+        where = "WHERE offer_active(o.valid_to, o.found_at)"
+        if not include_hidden:
+            where += " AND m.hidden=0"
         return self.q(
             f"SELECT m.*, o.* FROM matches m JOIN offers o ON o.uid=m.offer_uid {where} "
             f"ORDER BY m.ts DESC LIMIT ?", (limit,))
 
     def offers(self, kind: str | None = None, search: str = "", limit: int = 3000) -> list[sqlite3.Row]:
-        sql, args = "SELECT * FROM offers WHERE 1=1", []
+        sql, args = "SELECT * FROM offers WHERE offer_active(valid_to, found_at)", []
         if kind:
             sql += " AND kind=?"
             args.append(kind)
@@ -197,6 +203,8 @@ class Database:
     def cleanup(self, keep_days: int) -> None:
         cutoff = (datetime.now() - timedelta(days=keep_days)).isoformat(timespec="seconds")
         self.x("DELETE FROM offers WHERE last_seen < ? AND uid NOT IN (SELECT offer_uid FROM matches)", (cutoff,))
+        self.x("DELETE FROM matches WHERE offer_uid IN (SELECT uid FROM offers "
+               "WHERE valid_to <> '' AND NOT offer_active(valid_to, found_at))")
         self.shopping_purge()
 
     # ---------- Preisverlauf ----------

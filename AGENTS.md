@@ -1,6 +1,6 @@
 # Briefing für KI-Assistenten (GPT/Codex, Claude)
 
-Stand: 22.11.2026, Version 1.10.5. Kurz und verbindlich – bitte vor jeder Arbeit lesen.
+Stand: 23.11.2026, Version 1.10.6. Kurz und verbindlich – bitte vor jeder Arbeit lesen.
 
 ## Arbeitsweise (Vorgaben des Nutzers)
 

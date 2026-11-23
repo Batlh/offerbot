@@ -84,6 +84,20 @@ Rechtsklick → **Preisverlauf** zeigt dazu ein Diagramm.
 
 Groß-/Kleinschreibung und Umlaute sind egal (`kuhlschrank` findet „Kühlschrank“).
 
+## Suchvorgaben aus ChatGPT übernehmen
+
+Unter **Suchprofile → Suchaufträge importieren** eine vorbereitete Offerbot-JSON-Datei auswählen. Alternativ die Datei als `Angebotsaufgaben.import.json` im Datenordner ablegen. Beim nächsten Start übernimmt der Bot sie automatisch. Im Menü ist danach der ursprüngliche Auftrag nachlesbar.
+
+Die importierten Artikel erscheinen in der Watchlist und werden bei normalen Prüfläufen mit den aktivierten Quellen abgeglichen. Zusätzliche Ortsquellen stehen im Tab Quellen. Ein branchenoffener Radar ordnet Deals innerhalb seines Zeitraums unabhängig vom Produktnamen zu. Die Zeitpläne und Berichte der ursprünglichen ChatGPT-Aufgaben verbleiben in ChatGPT. Der Import aktiviert keine zusätzliche KI-Recherche. Direkte Amazon-Prüfungen erfolgen weiterhin auf Knopfdruck. Händler, zu denen keine aktive Quelle Daten liefert, erfordern eine eigene Quelle oder manuelle Prüfung.
+
+## REWE und weitere Filialprospekte
+
+Unter **Quellen → REWE – offizieller Marktprospekt** ist **Wasserweg 2, 54292 Trier** (Markt 840740) voreingestellt. Unter **Einstellungen** den **Browser-Modus** aktivieren. Die Quelle liest im integrierten Browser die aktuellen Angebotskarten einschließlich ausgewiesener Bonusbeträge und Pfand direkt von REWE. Im normalen Lauf prüft Offerbot zusätzlich den von REWE eingebetteten Wochenkatalog auf eine direkt bereitgestellte PDF. Fehlt ein direkter PDF-Link, rendert der integrierte Browser den Katalog und betätigt einen sichtbaren Downloadknopf selbst. Die Prüfung erfolgt einmal je Markt und Kalenderwoche. Eine lesbare Datei landet automatisch unter Prospekte; bei fehlendem oder gesperrtem Download nennt das Protokoll den Grund. Die Angebotskarten bleiben unabhängig davon nutzbar. **Wochenprospekt bei REWE öffnen** öffnet den Prospekt im sichtbaren Offerbot-Browser (vor dem ersten Abruf die Marktseite). Wenn der Anbieter einen PDF-Download anbietet, kannst du ihn dort auswählen. Offerbot übernimmt die Datei in den Tab Prospekte und startet die lokale Auswertung. Für einen anderen Markt die offizielle REWE-Angebotsadresse eintragen.
+
+Die zusätzliche kaufDA-Quelle **REWE – Filialprospekt** ist optional. Für einen anderen REWE den Ort eingeben und **Filiale auswählen …** anklicken oder Straße und Hausnummer eintragen, **Testen** wählen, die erkannte Adresse prüfen und **Speichern** klicken. Ein leerer Straßenwert zeigt beim Testen verfügbare Adressen. Alternativ den öffentlichen kaufDA-Link der gewünschten Filiale einfügen (endet auf `/v-f…`). Für einen zweiten Markt die Quelle duplizieren.
+
+Weitere Vorlagen für EDEKA, E center, Netto Marken-Discount, NORMA, METRO, ROSSMANN, dm, Müller, ALDI SÜD, Kaufland und Lidl stehen im selben Tab. Für Trier sind die zusätzlichen Märkte aktiviert. Die Filialvorlagen für ALDI SÜD, Kaufland und Lidl kannst du bei Bedarf zur vorhandenen Händlerquelle hinzuschalten. Über **Neue Quelle → Filialprospekt** lässt sich auch eine andere deutsche kaufDA-Filialseite eintragen. In den Prospekten steht die tatsächlich erkannte Adresse. Bei eingeschränkter Vorschau verarbeitet die lokale Texterkennung nur die bereitgestellten Seiten. Der Knopf **Vollständigen Prospekt online öffnen** führt zum Blätterprospekt des Anbieters.
+
 ## Quellen auswählen
 
 Für mydealz den RSS-Feed auswählen und in der Watchlist „Deals & Shops“, Stichwörter und Höchstpreis setzen.

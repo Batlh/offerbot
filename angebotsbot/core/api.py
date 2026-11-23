@@ -54,7 +54,10 @@ def _offer_json(r, db=None) -> dict[str, Any]:
             pid, page = int(a), int(b)
         except ValueError:
             pass
+    from .validity import end_date
+    until = end_date(r["valid_to"], r["found_at"])
     out = {
+        "expires": until.isoformat() if until else "",
         "uid": r["uid"] if "uid" in keys else r["offer_uid"],
         "title": r["title"] or "", "price": r["price"], "old_price": r["old_price"],
         "merchant": r["merchant"] or "", "kind": r["kind"] or "", "url": url if url.startswith("http") else "",
@@ -286,6 +289,8 @@ class ApiServer:
     def prospekte(self, q, body):
         return {"items": [{"id": r["id"], "retailer": r["retailer"], "title": r["title"], "pages": r["pages"] or 0,
                            "valid_from": r["valid_from"] or "", "valid_to": r["valid_to"] or "",
+                           "viewer_url": r["url"].split("#")[0] if (r["url"] or "").startswith(
+                               "https://www.kaufda.de/contentViewer/static/") else "",
                            "fetched": r["fetched"] or ""} for r in self.db.prospekte()]}
 
     def prospekt_page(self, pid, page, q, body):

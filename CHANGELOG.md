@@ -3,6 +3,15 @@
 Alle Versionen des AngebotsBot (offerbot). Die neueste steht oben.
 Jede Release auf GitHub enthält die fertige Windows-Version als ZIP (`AngebotsBot-windows.zip`).
 
+## 1.10.6 – 2026-11-23
+### Neu
+- Offizielle REWE-Marktangebote mit Bonus- und Pfandangaben, wöchentlichem Zwischenspeicher und Prospektabruf über den integrierten Browser einschließlich automatischer Suche nach veröffentlichten PDF-Downloads und manueller PDF-Übernahme. Vorgabe für Trier: Wasserweg 2.
+- Filialprospekte mit frei wählbarer Marktadresse für REWE und weitere Händler, lokaler Seitenvorschau und Online-Blätterprospekt.
+- Suchprofile mit Produktregeln, regionalen kaufDA-Quellen, belegten Angeboten und einem zeitlich begrenzten branchenoffenen Dealfilter importieren.
+### Behoben
+- Abgelaufene Angebote verschwinden nach dem letzten gültigen Tag aus Angebotsliste und Treffern. Einkaufszettel und Preisverlauf bleiben erhalten.
+- Der Hinweis zu Stichwörtern in der Watchlist verwendet die Textfarbe des gewählten Designs.
+
 ## 1.10.5 – 2026-11-22
 ### Neu
 - Die Android-App merkt sich Treffer für unterwegs, meldet neue Treffer bei geöffneter App und zeigt ausstehende Website-Prüfungen an. Zwei gekoppelte Handys können Listen über denselben PC abgleichen.

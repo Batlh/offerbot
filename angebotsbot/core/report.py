@@ -50,32 +50,11 @@ td,th{{border-bottom:1px solid #ddd;padding:6px;text-align:left;font-size:14px}}
 
 
 # ---------------------------------------------------------------- Wochenbericht
-def _is_expired(valid_to: str, today: date) -> bool:
-    v = (valid_to or "").strip()
-    if not v:
-        return False
-    try:
-        if re.fullmatch(r"\d{4}-\d{2}-\d{2}.*", v):
-            return date.fromisoformat(v[:10]) < today
-        m = re.fullmatch(r"(\d{1,2})\.(\d{1,2})\.(\d{2,4})?", v)
-        if m:
-            d, mo = int(m.group(1)), int(m.group(2))
-            y = int(m.group(3)) if m.group(3) else today.year
-            y = y + 2000 if y < 100 else y
-            if not m.group(3) and mo == 1 and today.month == 12:
-                y += 1
-            return date(y, mo, d) < today
-    except ValueError:
-        return False
-    return False
-
-
 def best_offers(db, watchlist, days: int = 8, top: int = 3) -> dict[str, list]:
     """Je Watchlist-Eintrag die günstigsten aktuellen Treffer (nach Grundpreis, sonst Preis)."""
-    today = date.today()
     cutoff = (datetime.now() - timedelta(days=days)).isoformat(timespec="seconds")
     rows = [r for r in db.matches() if (r["last_seen"] or r["ts"] or "") >= cutoff
-            and not _is_expired(r["valid_to"], today) and r["price"] is not None]
+            and r["price"] is not None]
     out: dict[str, list] = {}
     for w in watchlist:
         items = [r for r in rows if r["watch_id"] == w.id]

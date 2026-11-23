@@ -105,7 +105,15 @@ def test_geizhals_and_product(env):
     assert a["price"] == 179.99 and a["title"] == "Samsung 990 PRO 2TB"
 
 
-def test_full_run_with_prospekte(env, monkeypatch):
+@pytest.fixture
+def aktuelle_prospektwoche(monkeypatch):
+    from datetime import date
+    from angebotsbot.core import db as dbmod
+    from angebotsbot.core.validity import active
+    monkeypatch.setattr(dbmod, "active", lambda value, found: active(value, "2026-11-19", date(2026, 11, 19)))
+
+
+def test_full_run_with_prospekte(env, monkeypatch, aktuelle_prospektwoche):
     cfg, db, eng = env
     from angebotsbot.core import engine as engmod
     from angebotsbot.core.models import Source, WatchItem
@@ -179,7 +187,7 @@ def test_ocr_page(tmp_path):
     assert "kerrygold" in pages[0][1].lower()
 
 
-def test_kaufda(env, monkeypatch):
+def test_kaufda(env, monkeypatch, aktuelle_prospektwoche):
     cfg, db, eng = env
     from angebotsbot.core import engine as engmod
     from angebotsbot.core.models import Source, WatchItem
@@ -384,7 +392,7 @@ def test_flipbuilder_and_notify(env, monkeypatch):
     notify.send({"phone": {"mode": "aus"}}, "x", "y")  # nichts passiert
 
 
-def test_bonial_fallback(env, monkeypatch):
+def test_bonial_fallback(env, monkeypatch, aktuelle_prospektwoche):
     cfg, db, eng = env
     from angebotsbot.core import engine as engmod
     from angebotsbot.core.models import Source, WatchItem
@@ -424,7 +432,7 @@ def test_debug_package(env):
     assert "geheim123" not in cfg_txt
 
 
-def test_issuu_and_screens_and_metro(env, monkeypatch):
+def test_issuu_and_screens_and_metro(env, monkeypatch, aktuelle_prospektwoche):
     cfg, db, eng = env
     from angebotsbot.core import engine as engmod
     from angebotsbot.core.models import Source, WatchItem
@@ -569,7 +577,7 @@ def test_phone_api(env):
     from angebotsbot.core.models import Offer, WatchItem
     w = WatchItem("Butter", keywords="butter", in_prospekte=True)
     cfg.watchlist = [w]
-    o = Offer("s", "S", "Kerrygold Butter 250 g", price=1.69, merchant="Lidl", kind="prospekt", valid_to="21.11.")
+    o = Offer("s", "S", "Kerrygold Butter 250 g", price=1.69, merchant="Lidl", kind="prospekt", valid_to="2099-11-21")
     db.upsert_offers([o])
     eng.match([o])
     started = []
@@ -791,3 +799,187 @@ def test_hilfetexte_fuer_alle_tabs(monkeypatch):
                  "Einkaufszettel", "Einstellungen", "Protokoll"):
         MainWindow.show_help(parent, name)
         assert name in texts[-1]
+
+
+def test_abgelaufene_treffer_und_einkaufszettel(env, monkeypatch):
+    from datetime import date
+    from angebotsbot.core import db as dbmod
+    from angebotsbot.core.validity import active
+    from angebotsbot.core.models import WatchItem, Offer
+    cfg, db, eng = env
+    day = date(2026, 11, 21)
+    monkeypatch.setattr(dbmod, "active", lambda end, found: active(end, found, day))
+    cfg.watchlist = [WatchItem("Monster", in_prospekte=True)]
+    offer = Offer("rewe", "REWE", "Monster Energy", price=0.99, valid_to="21.11.", found_at="2026-11-16")
+    db.upsert_offers([offer])
+    assert eng.match([offer])
+    assert db.shopping_add(db.matches()[0])
+    day = date(2026, 11, 23)
+    assert not db.offers() and not db.matches()
+    db.cleanup(30)
+    assert not eng.match([offer]) and db.shopping()
+    assert not active("31.12.", "2026-12-28", date(2027, 1, 1))
+    assert active("02.01.", "2026-12-28", date(2027, 1, 2))
+    assert active("", "", day)
+
+def test_suchprofil_import(env):
+    from angebotsbot.core.aufgaben import install, parse_bundle
+    from angebotsbot.core.matcher import offer_matches
+    from angebotsbot.core.models import Offer
+    cfg, db, _ = env
+    task = dict(id="regional", name="Regional", prompt="Produktvarianten", merchants=["REWE"],
+                cities=["Konz"], queries=[dict(name="Monster", query="Energydrink",
+                keywords="monster", variant_terms="0,5-l|500-ml")])
+    radar = dict(id="radar", name="Branchenoffen", prompt="Alle Deals", merchants=[], queries=[], all_deals=True)
+    tasks = parse_bundle(json.dumps({"format": "offerbot-aufgaben-1", "tasks": [task, radar]}))
+    for _ in range(2):
+        install(cfg, tasks, db)
+    assert sum(s.settings.get("ort") == "Konz" for s in cfg.sources) == 1
+    monster, = [w for w in cfg.watchlist if w.name == "Monster"]
+    assert offer_matches(Offer("s", "S", "Monster Energy", info="0,5-l-Dose"), monster)
+    assert not offer_matches(Offer("s", "S", "Monster Energy 330 ml"), monster)
+    broad, = [w for w in cfg.watchlist if w.name == "Branchenoffen"]
+    assert offer_matches(Offer("s", "S", "Winterjacke"), broad)
+    broad.active_to = "2000-11-30"
+    assert not offer_matches(Offer("s", "S", "Winterjacke"), broad)
+
+
+def test_filialprospekt_auswahl_und_vorschau(env):
+    from angebotsbot.core.prospekte.filialen import run
+    from angebotsbot.core.sources import RunContext
+    from angebotsbot.core.models import Source
+    cfg, db, _ = env
+    base = "https://www.kaufda.de/Filialen/Trier/"
+    cid = "fa043f92-9a13-4c75-96fc-a28fd63dc43e"
+    item = {"type": "BROCHURE", "title": "Testwoche", "contentId": cid,
+            "validFrom": "2099-11-22T23:00:00.000+0000", "validUntil": "2099-11-28T22:00:00.000+0000",
+            "pageCount": 24, "pages": [{"page": 1, "url": {"large": "https://content-media.bonial.biz/cover.jpg"}}]}
+    pi = {"store": {"publicId": "11", "name": "REWE", "street": "Simeonstraße", "houseNumber": "15"},
+          "brochures": {"viewer": [item], "sector": [dict(item, title="Fremder Prospekt")]}}
+    html = '<script id="__NEXT_DATA__">' + json.dumps({"props": {"pageProps": {"pageInformation": pi}}}) + '</script>'
+    listing = '<meta charset="utf-8"><a href="/Filialen/Trier/Markt/v-f11">REWE Simeonstraße 15 Trier</a><a href="/Filialen/Trier/Markt/v-f12">REWE Simeonstraße 150 Trier</a>'
+    class Filialseiten:
+        def public_file(self, url):
+            if url.endswith("/REWE/v-r101"):
+                return listing.encode()
+            assert url == base + "Markt/v-f11"
+            return html.encode()
+
+    logs = []
+    ctx = RunContext(Filialseiten(), db, cfg.settings, [], log=logs.append, extra={"dry_run": True})
+    src = Source("REWE", "filialprospekt", {"ort": "Trier", "filiale": "Simeonstr. 15"})
+    run(ctx, src)
+    assert any("1 von 24" in line and "2099-11-23" in line for line in logs)
+    assert not any("Fremder Prospekt" in line for line in logs)
+    assert not db.prospekte()
+    src.settings["filiale"] = "Simeonstraße"
+    with pytest.raises(ValueError, match="eindeutige Straße"):
+        run(ctx, src)
+    src.settings["filiale"] = base + "Markt/v-f11"
+    pi["store"]["publicId"] = "12"
+    html = '<script id="__NEXT_DATA__">' + json.dumps({"props": {"pageProps": {"pageInformation": pi}}}) + '</script>'
+    with pytest.raises(ValueError, match="Filialkennung"):
+        run(ctx, src)
+
+
+def test_rewe_wasserweg_wochenabruf(env, monkeypatch):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    from angebotsbot.core.config import rewe_quelle
+    from angebotsbot.core.sources import RunContext
+    from angebotsbot.core.sources.rewe import run
+    cfg, db, _ = env
+    y, w, _ = datetime.now(ZoneInfo("Europe/Berlin")).date().isocalendar()
+    cfg.settings["browser_mode"] = True
+    class Marktseite:
+        calls = 0
+        def render_market(self, url):
+            self.calls += 1
+            return (f'<iframe title="Prospekt" data-src="https://services.publitas.com/rewe/publications?week={w}&amp;wwident=840740"></iframe>'
+                    f'<div data-offer-id="1" data-offer-wwident="840740" data-offer-week="{y}/{w}">'
+                    '<h3 data-testid="offer-title-link">Monster</h3><span class="cor-offer-price__tag-price">0,99 €</span>'
+                    '<span data-testid="cor-loyalty-badge">0,10 €</span></div>').encode()
+    from angebotsbot.core.sources import rewe
+    from angebotsbot.core.sources.rewe import pdf_links
+    viewer = "https://services.publitas.com/rewe/publications"
+    assert list(pdf_links('<a href="/aktuell.pdf">PDF</a>', viewer)) == ["https://services.publitas.com/aktuell.pdf"]
+    assert not list(pdf_links('<a href="index.html">Prospekt ansehen</a>', viewer))
+    pdf_calls = []
+    def pdf_download(ctx, url):
+        pdf_calls.append(url)
+        with pymupdf.open() as doc:
+            doc.new_page()
+            doc.new_page()
+            return doc.tobytes()
+    monkeypatch.setattr(rewe, "fetch_brochure_pdf", pdf_download)
+    fetch = Marktseite()
+    ctx = RunContext(fetch, db, cfg.settings, [])
+    for _ in range(2):
+        offer, = run(ctx, rewe_quelle())
+        assert offer.price == 0.99 and "0,10 €" in offer.info
+    assert len(pdf_calls) == 1 and len(ctx.extra["new_prospekte"]) == 1
+    with pymupdf.open(db.prospekt(ctx.extra["new_prospekte"][0])["pdf_path"]) as doc:
+        assert doc.page_count == 2
+    assert fetch.calls == 1 and "wwident=840740" in db.meta_get("rewe-markt:840740")
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Edge-Test unter Windows")
+def test_rewe_browser_uebernimmt_pdf(env, monkeypatch):
+    import base64
+    from playwright.sync_api import Browser
+    from angebotsbot.core import browser_setup
+    from angebotsbot.core.sources.rewe import open_brochure
+    from angebotsbot.core.config import REWE_MARKT
+    cfg, db, _ = env
+    with pymupdf.open() as doc:
+        doc.new_page()
+        pdf = base64.b64encode(doc.tobytes()).decode()
+    original = Browser.new_context
+
+    def with_fixture(browser, **kw):
+        ctx = original(browser, **kw)
+        html = (f'<a id="pdf" download="Wochenprospekt.pdf" href="data:application/pdf;base64,{pdf}">PDF</a>'
+                '<script>setTimeout(() => document.querySelector("a").click(), 100)</script>')
+        ctx.route("https://www.rewe.de/**", lambda route: route.fulfill(content_type="text/html", body=html))
+        return ctx
+
+    monkeypatch.setattr(Browser, "new_context", with_fixture)
+    launch = browser_setup.launch
+    monkeypatch.setattr(browser_setup, "launch", lambda p, settings, log, **kw:
+                        launch(p, settings, log, headless=True))
+    import time
+    deadline = time.monotonic() + 35
+    pid = open_brochure(cfg.settings, REWE_MARKT, "", db, lambda *_: None, lambda: time.monotonic() > deadline)
+    assert pid and db.prospekt(pid)["title"] == "Wochenprospekt"
+    with pymupdf.open(db.prospekt(pid)["pdf_path"]) as saved:
+        assert saved.page_count == 1
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Edge-Test unter Windows")
+def test_wochenprospekt_browser_klickt_download_selbst(env):
+    from playwright.sync_api import sync_playwright
+    from angebotsbot.core.browser_setup import launch, prepare_env
+    from angebotsbot.core.sources.rewe import click_pdf_download
+    cfg, _, _ = env
+    prepare_env()
+    url = "https://viewer.example/woche"
+    html = b"""<button hidden onclick="location.href='/prospekt'">PDF herunterladen</button>
+               <script>setTimeout(() => document.querySelector('button').hidden=false, 100)</script>"""
+    with pymupdf.open() as document:
+        document.new_page()
+        pdf = document.tobytes()
+    calls = []
+    def get(target):
+        if target.endswith("/favicon.ico"):
+            return target, b"", {"content-type": "image/x-icon"}
+        calls.append(target)
+        assert target == "https://viewer.example/prospekt"
+        return target, pdf, {"content-type": "application/pdf", "content-disposition": "attachment"}
+    with sync_playwright() as pw:
+        browser = launch(pw, cfg.settings, headless=True)
+        try:
+            ctx = browser.new_context(accept_downloads=True, service_workers="block")
+            actual = click_pdf_download(ctx, url, html, {"content-type": "text/html"}, get, lambda: False)
+        finally:
+            browser.close()
+    assert calls == ["https://viewer.example/prospekt"] and actual == pdf

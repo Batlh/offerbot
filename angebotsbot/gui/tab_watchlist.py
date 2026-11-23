@@ -75,8 +75,12 @@ class WatchTab(QWidget):
         f.addRow("Stichwörter", self.keywords)
         hl = QLabel(HELP)
         hl.setWordWrap(True)
-        hl.setStyleSheet("color:#555")
         f.addRow("", hl)
+        self.profile_rules = QLabel()
+        self.profile_rules.setTextFormat(Qt.PlainText)
+        self.profile_rules.setWordWrap(True)
+        self.profile_rules.hide()
+        f.addRow("", self.profile_rules)
         f.addRow("Suchtext", self.query)
         f.addRow("Suchtext FR", self.query_fr)
         f.addRow("Kategorie", self.category)
@@ -180,6 +184,15 @@ class WatchTab(QWidget):
         self.search_online.setChecked(w.search_online)
         self.enabled.setChecked(w.enabled)
         self.urls.setPlainText("\n".join(w.urls))
+        rules = []
+        if w.all_deals:
+            rules.append(f"Alle Deals · {w.active_from or 'offen'} bis {w.active_to or 'offen'}")
+        if w.variant_terms:
+            rules.append(f"Variante: {w.variant_terms}")
+        if w.merchant_filter:
+            rules.append(f"Händler: {w.merchant_filter}")
+        self.profile_rules.setText("\n".join(rules))
+        self.profile_rules.setVisible(bool(rules))
         self.notes.setPlainText(w.notes)
         self.try_keywords()
 
@@ -302,7 +315,7 @@ class WatchTab(QWidget):
         expr = self.keywords.text().strip() or self.name.text().strip()
         ok = text_matches(t, expr)
         self.test_res.setText("✔ passt" if ok else "✘ passt nicht")
-        self.test_res.setStyleSheet("color:#1a7f37;font-weight:bold" if ok else "color:#b42318;font-weight:bold")
+        self.test_res.setStyleSheet("font-weight:bold")
 
 
 class AmazonDialog(QDialog):

@@ -39,18 +39,65 @@ class Fetcher:
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.8,*/*;q=0.7",
         })
         self._last: dict[str, float] = {}
+        self._robots = {}
         self.last_url = ""
         self._lock = threading.Lock()
 
-    def _wait(self, url: str) -> None:
+    def _wait(self, url: str, minimum: float = 0) -> None:
         host = urlparse(url).netloc
-        delay = float(self.settings.get("request_delay_s", 1.5))
+        delay = max(minimum, float(self.settings.get("request_delay_s", 1.5)))
         with self._lock:
             last = self._last.get(host, 0.0)
             wait = last + delay - time.time()
             self._last[host] = max(time.time(), last + delay)
         if wait > 0:
             time.sleep(wait)
+
+    def _public_delay(self, url: str, *, rewe_viewer=False) -> float:
+        """Öffentliche Filialseiten und Seitenbilder ohne Cookies oder Weiterleitungen laden."""
+        from protego import Protego
+        host = urlparse(url).netloc
+        allowed = host in ("www.kaufda.de", "content-media.bonial.biz", "www.rewe.de")
+        if rewe_viewer:
+            allowed = host in ("publitas.com", "publitas.net") or host.endswith((".publitas.com", ".publitas.net"))
+        if urlparse(url).scheme != "https" or urlparse(url).username is not None or not allowed:
+            raise FetchError("Unerwarteter Anbieter der Prospektseite.")
+        agent = "Offerbot"
+
+        def request(target, minimum=0):
+            self._wait(target, minimum)
+            response = requests.get(target, headers={"User-Agent": agent}, allow_redirects=False,
+                                    timeout=float(self.settings.get("timeout_s", 20)))
+            if response.is_redirect:
+                raise FetchError(f"Weiterleitung beim Prospektabruf: {target}")
+            return response
+
+        if host not in self._robots:
+            response = request(f"https://{host}/robots.txt")
+            if response.status_code != 404:
+                response.raise_for_status()
+            self._robots[host] = Protego.parse(response.text if response.ok else "")
+        rules = self._robots[host]
+        if not rules.can_fetch(url, agent):
+            raise FetchError(f"robots.txt erlaubt diesen Prospektabruf nicht: {url}")
+        delay = rules.crawl_delay(agent) or 0
+        rate = rules.request_rate(agent)
+        if rate:
+            delay = max(delay, rate.seconds / rate.requests)
+        return delay
+
+    def render_market(self, url):
+        delay = self._public_delay(url)
+        return self.render(url, wait_selector="[data-offer-id][data-rendered=true]", minimum_delay=delay)
+
+    def public_file(self, url: str) -> bytes:
+        self._wait(url, self._public_delay(url))
+        response = requests.get(url, headers={"User-Agent": "Offerbot"}, allow_redirects=False,
+                                timeout=float(self.settings.get("timeout_s", 20)))
+        if response.is_redirect:
+            raise FetchError(f"Weiterleitung beim Prospektabruf: {url}")
+        response.raise_for_status()
+        return response.content
 
     def get(self, url: str, as_json: bool = False, binary: bool = False):
         self._wait(url)
@@ -108,7 +155,7 @@ class Fetcher:
         target.write_bytes(data)
         return target
 
-    def render(self, url: str, wait_selector: str | None = None, wait_ms: int = 2500) -> str:
+    def render(self, url: str, wait_selector: str | None = None, wait_ms: int = 2500, minimum_delay: float = 0) -> str:
         """Seite in echtem (unsichtbarem) Browser laden – für Seiten, die erst per JavaScript Inhalte zeigen."""
         if not self.settings.get("browser_mode"):
             raise FetchError("Browser-Modus ist aus – in den Einstellungen den Haken setzen (richtet sich selbst ein)")
@@ -118,14 +165,22 @@ class Fetcher:
             from playwright.sync_api import sync_playwright  # type: ignore
         except ImportError as e:
             raise FetchError("Browser-Modus noch nicht eingerichtet – Haken in den Einstellungen neu setzen") from e
-        self._wait(url)
+        self._wait(url, minimum_delay)
         LOG.debug("Browser (%s) lädt %s", self.settings.get("browser_channel") or "?", url)
         t0 = time.time()
         with sync_playwright() as p:
             browser = launch(p, self.settings, LOG.info, headless=True)
             try:
                 page = browser.new_page(locale="de-DE")
-                page.goto(url, timeout=int(float(self.settings.get("timeout_s", 20)) * 1000))
+                response = page.goto(url, timeout=int(float(self.settings.get("timeout_s", 20)) * 1000))
+                if response and response.status >= 400:
+                    from .assist import is_challenge
+                    if response.status == 403 and is_challenge(page.content()):
+                        raise CheckRequired(url)
+                    blocked = requests.Response()
+                    blocked.status_code = response.status
+                    blocked.url = url
+                    blocked.raise_for_status()
                 if wait_selector:
                     try:
                         page.wait_for_selector(wait_selector, timeout=10000)
