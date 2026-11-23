@@ -176,7 +176,10 @@ def run_portal(ctx: RunContext, source: Source, portal: str) -> list[Offer]:
     for w in ctx.watchlist:
         if w.enabled and w.in_prospekte and w.search_online:
             q = (getattr(w, query_field, "") or "").strip() or w.search_text
-            if not collect(slug_candidates(q), "prospekt", w.id):
+            slugs = slug_candidates(q)
+            if portal == "kaufda" and q.casefold() in ("monster energy", "monster energy drink"):
+                slugs.insert(0, "Energydrink")
+            if not collect(slugs, "prospekt", w.id):
                 missing.append(q)
     name = "kaufDA" if portal == "kaufda" else "Bonial"
     matched = {o.merchant for o, _ in find_matches(out, ctx.watchlist, float(ctx.settings.get("min_temperature") or 0))}

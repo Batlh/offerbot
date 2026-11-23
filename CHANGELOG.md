@@ -3,6 +3,13 @@
 Alle Versionen des AngebotsBot (offerbot). Die neueste steht oben.
 Jede Release auf GitHub enthält die fertige Windows-Version als ZIP (`AngebotsBot-windows.zip`).
 
+## 1.10.6 – 2026-11-23
+### Neu
+- Suchprofile mit Produktregeln, regionalen kaufDA-Quellen, belegten Angeboten und einem zeitlich begrenzten branchenoffenen Dealfilter importieren.
+### Behoben
+- Abgelaufene Angebote verschwinden nach dem letzten gültigen Tag aus Angebotsliste und Treffern. Einkaufszettel und Preisverlauf bleiben erhalten.
+- Der Hinweis zu Stichwörtern in der Watchlist verwendet die Textfarbe des gewählten Designs.
+
 ## 1.10.5 – 2026-11-22
 ### Neu
 - Die Android-App merkt sich Treffer für unterwegs, meldet neue Treffer bei geöffneter App und zeigt ausstehende Website-Prüfungen an. Zwei gekoppelte Handys können Listen über denselben PC abgleichen.

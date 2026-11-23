@@ -105,7 +105,15 @@ def test_geizhals_and_product(env):
     assert a["price"] == 179.99 and a["title"] == "Samsung 990 PRO 2TB"
 
 
-def test_full_run_with_prospekte(env, monkeypatch):
+@pytest.fixture
+def aktuelle_prospektwoche(monkeypatch):
+    from datetime import date
+    from angebotsbot.core import db as dbmod
+    from angebotsbot.core.validity import active
+    monkeypatch.setattr(dbmod, "active", lambda value, found: active(value, "2026-11-19", date(2026, 11, 19)))
+
+
+def test_full_run_with_prospekte(env, monkeypatch, aktuelle_prospektwoche):
     cfg, db, eng = env
     from angebotsbot.core import engine as engmod
     from angebotsbot.core.models import Source, WatchItem
@@ -179,7 +187,7 @@ def test_ocr_page(tmp_path):
     assert "kerrygold" in pages[0][1].lower()
 
 
-def test_kaufda(env, monkeypatch):
+def test_kaufda(env, monkeypatch, aktuelle_prospektwoche):
     cfg, db, eng = env
     from angebotsbot.core import engine as engmod
     from angebotsbot.core.models import Source, WatchItem
@@ -384,7 +392,7 @@ def test_flipbuilder_and_notify(env, monkeypatch):
     notify.send({"phone": {"mode": "aus"}}, "x", "y")  # nichts passiert
 
 
-def test_bonial_fallback(env, monkeypatch):
+def test_bonial_fallback(env, monkeypatch, aktuelle_prospektwoche):
     cfg, db, eng = env
     from angebotsbot.core import engine as engmod
     from angebotsbot.core.models import Source, WatchItem
@@ -424,7 +432,7 @@ def test_debug_package(env):
     assert "geheim123" not in cfg_txt
 
 
-def test_issuu_and_screens_and_metro(env, monkeypatch):
+def test_issuu_and_screens_and_metro(env, monkeypatch, aktuelle_prospektwoche):
     cfg, db, eng = env
     from angebotsbot.core import engine as engmod
     from angebotsbot.core.models import Source, WatchItem
@@ -569,7 +577,7 @@ def test_phone_api(env):
     from angebotsbot.core.models import Offer, WatchItem
     w = WatchItem("Butter", keywords="butter", in_prospekte=True)
     cfg.watchlist = [w]
-    o = Offer("s", "S", "Kerrygold Butter 250 g", price=1.69, merchant="Lidl", kind="prospekt", valid_to="21.11.")
+    o = Offer("s", "S", "Kerrygold Butter 250 g", price=1.69, merchant="Lidl", kind="prospekt", valid_to="2099-11-21")
     db.upsert_offers([o])
     eng.match([o])
     started = []
@@ -791,3 +799,46 @@ def test_hilfetexte_fuer_alle_tabs(monkeypatch):
                  "Einkaufszettel", "Einstellungen", "Protokoll"):
         MainWindow.show_help(parent, name)
         assert name in texts[-1]
+
+
+def test_abgelaufene_treffer_und_einkaufszettel(env, monkeypatch):
+    from datetime import date
+    from angebotsbot.core import db as dbmod
+    from angebotsbot.core.validity import active
+    from angebotsbot.core.models import WatchItem, Offer
+    cfg, db, eng = env
+    day = date(2026, 11, 21)
+    monkeypatch.setattr(dbmod, "active", lambda end, found: active(end, found, day))
+    cfg.watchlist = [WatchItem("Monster", in_prospekte=True)]
+    offer = Offer("rewe", "REWE", "Monster Energy", price=0.99, valid_to="21.11.", found_at="2026-11-16")
+    db.upsert_offers([offer])
+    assert eng.match([offer])
+    assert db.shopping_add(db.matches()[0])
+    day = date(2026, 11, 23)
+    assert not db.offers() and not db.matches()
+    db.cleanup(30)
+    assert not eng.match([offer]) and db.shopping()
+    assert not active("31.12.", "2026-12-28", date(2027, 1, 1))
+    assert active("02.01.", "2026-12-28", date(2027, 1, 2))
+    assert active("", "", day)
+
+def test_suchprofil_import(env):
+    from angebotsbot.core.aufgaben import install, parse_bundle
+    from angebotsbot.core.matcher import offer_matches
+    from angebotsbot.core.models import Offer
+    cfg, db, _ = env
+    task = dict(id="regional", name="Regional", prompt="Produktvarianten", merchants=["REWE"],
+                cities=["Konz"], queries=[dict(name="Monster", query="Energydrink",
+                keywords="monster", variant_terms="0,5-l|500-ml")])
+    radar = dict(id="radar", name="Branchenoffen", prompt="Alle Deals", merchants=[], queries=[], all_deals=True)
+    tasks = parse_bundle(json.dumps({"format": "offerbot-aufgaben-1", "tasks": [task, radar]}))
+    for _ in range(2):
+        install(cfg, tasks, db)
+    assert sum(s.settings.get("ort") == "Konz" for s in cfg.sources) == 1
+    monster, = [w for w in cfg.watchlist if w.name == "Monster"]
+    assert offer_matches(Offer("s", "S", "Monster Energy", info="0,5-l-Dose"), monster)
+    assert not offer_matches(Offer("s", "S", "Monster Energy 330 ml"), monster)
+    broad, = [w for w in cfg.watchlist if w.name == "Branchenoffen"]
+    assert offer_matches(Offer("s", "S", "Winterjacke"), broad)
+    broad.active_to = "2000-11-30"
+    assert not offer_matches(Offer("s", "S", "Winterjacke"), broad)

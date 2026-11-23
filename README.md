@@ -84,6 +84,12 @@ Rechtsklick → **Preisverlauf** zeigt dazu ein Diagramm.
 
 Groß-/Kleinschreibung und Umlaute sind egal (`kuhlschrank` findet „Kühlschrank“).
 
+## Suchvorgaben aus ChatGPT übernehmen
+
+Unter **Suchprofile → Suchaufträge importieren** eine vorbereitete Offerbot-JSON-Datei auswählen. Alternativ die Datei als `Angebotsaufgaben.import.json` im Datenordner ablegen. Beim nächsten Start übernimmt der Bot sie automatisch. Im Menü ist danach der ursprüngliche Auftrag nachlesbar.
+
+Die importierten Artikel erscheinen in der Watchlist und werden bei normalen Prüfläufen mit den aktivierten Quellen abgeglichen. Zusätzliche Ortsquellen stehen im Tab Quellen. Ein branchenoffener Radar ordnet Deals innerhalb seines Zeitraums unabhängig vom Produktnamen zu. Die Zeitpläne und Berichte der ursprünglichen ChatGPT-Aufgaben verbleiben in ChatGPT. Der Import aktiviert keine zusätzliche KI-Recherche. Direkte Amazon-Prüfungen erfolgen weiterhin auf Knopfdruck. Händler, zu denen keine aktive Quelle Daten liefert, erfordern eine eigene Quelle oder manuelle Prüfung.
+
 ## Quellen auswählen
 
 Für mydealz den RSS-Feed auswählen und in der Watchlist „Deals & Shops“, Stichwörter und Höchstpreis setzen.

@@ -56,7 +56,22 @@ class _TrefferPageState extends State<TrefferPage> {
 
   @override
   Widget build(BuildContext context) {
-    final items = _nurNeu ? _items?.where((o) => !o.seen).toList() : _items;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final items = _items?.where((o) {
+      var end = DateTime.tryParse(o.expires.isEmpty ? o.validTo : o.expires);
+      if (end == null) {
+        final m = RegExp(r'^(\d{1,2})\.(\d{1,2})\.$').firstMatch(o.validTo);
+        if (m != null) {
+          final month = int.parse(m[2]!);
+          var year = today.year;
+          if (today.month == 12 && month == 1) year++;
+          if (today.month == 1 && month == 12) year--;
+          end = DateTime(year, month, int.parse(m[1]!));
+        }
+      }
+      return (end == null || !end.isBefore(today)) && (!_nurNeu || !o.seen);
+    }).toList();
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(

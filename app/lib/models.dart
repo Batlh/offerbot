@@ -22,6 +22,7 @@ class Offer {
   final int? page;
   final String base;
   final String unitPrice;
+  final String expires;
   final String validFrom;
   final String validTo;
   final String info;
@@ -43,6 +44,7 @@ class Offer {
     this.page,
     this.base = '',
     this.unitPrice = '',
+    this.expires = '',
     this.validFrom = '',
     this.validTo = '',
     this.info = '',
@@ -65,6 +67,7 @@ class Offer {
         page: j['page'] as int?,
         base: _s(j['base']),
         unitPrice: _s(j['unit_price']),
+        expires: _s(j['expires']),
         validFrom: _s(j['valid_from']),
         validTo: _s(j['valid_to']),
         info: _s(j['info']),
@@ -77,7 +80,7 @@ class Offer {
   Map<String, dynamic> toJson() => {
     'uid': uid, 'title': title, 'price': price, 'old_price': oldPrice, 'ref_price': refPrice,
     'merchant': merchant, 'kind': kind, 'url': url, 'prospekt_id': prospektId, 'page': page,
-    'base': base, 'unit_price': unitPrice, 'valid_from': validFrom, 'valid_to': validTo,
+    'expires': expires, 'base': base, 'unit_price': unitPrice, 'valid_from': validFrom, 'valid_to': validTo,
     'info': info, 'source': source, 'watch_name': watchName, 'seen': seen, 'hit': hit,
   };
 

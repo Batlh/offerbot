@@ -36,6 +36,7 @@ class MainWindow(QMainWindow):
         from ..core import logsetup
         logsetup.setup(bool(self.config.settings.get("debug")))
         LOG.info("Start: %s", logsetup.system_info())
+        self._offer_day = datetime.now().date()
         self.db = Database()
         self.engine = Engine(self.config, self.db, log=self.log)
         self.task: Task | None = None
@@ -84,6 +85,8 @@ class MainWindow(QMainWindow):
         self.matches_tab.open_prospekt.connect(self.open_prospekt)
         self.watch_tab.changed.connect(self.matches_tab.refresh_watch_filter)
 
+        self.jobs_menu = self.menuBar().addMenu("Suchprofile")
+        self.jobs_menu.aboutToShow.connect(self._jobs_menu)
         help_menu = self.menuBar().addMenu("Hilfe")
         help_menu.addAction("Hilfe zum aktuellen Tab", self.show_tab_help).setShortcut("F1")
         help_menu.addAction("Erste Schritte", lambda: self.show_help("Erste Schritte"))
@@ -110,6 +113,7 @@ class MainWindow(QMainWindow):
         self.timer.start(30_000)
         self.matches_tab.refresh_watch_filter()
         self.matches_tab.refresh()
+        self.offers_tab.refresh()
         self.prospekte_tab.refresh()
         self.shopping_tab.refresh()
         self.update_next_label()
@@ -120,10 +124,57 @@ class MainWindow(QMainWindow):
         self.pending_checks = {}
         self.api_server = None
         self.restart_api()
+        self._import_pending_jobs()
         if self.config.settings.get("auto_start"):
             QTimer.singleShot(1500, lambda: self.run_now())
 
     # ---------------------------------------------------------------- Hilfen
+    def _jobs_menu(self):
+        self.jobs_menu.clear()
+        self.jobs_menu.addAction("Suchaufträge importieren …", self._import_jobs)
+        for job in self.config.settings.get("suchprofile", {}).values():
+            self.jobs_menu.addAction(job["name"], lambda checked=False, j=job: self._show_job(j))
+
+    def _show_job(self, job):
+        dialog = QDialog(self)
+        dialog.setWindowTitle(job["name"])
+        dialog.resize(720, 540)
+        layout = QVBoxLayout(dialog)
+        view = QPlainTextEdit(dialog)
+        view.setPlainText(job["prompt"])
+        view.setReadOnly(True)
+        layout.addWidget(view)
+        dialog.exec()
+
+    def _import_pending_jobs(self):
+        path = self.config.path.parent / "Angebotsaufgaben.import.json"
+        if path.is_file() and self._load_job_file(path):
+            try:
+                path.replace(path.with_suffix(".erledigt"))
+            except OSError as error:
+                self.log(f"Importdatei konnte nicht umbenannt werden: {error}")
+
+    def _import_jobs(self):
+        from PySide6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(self, "Angebotsaufgaben importieren", "", "Offerbot-Aufgaben (*.json)")
+        if path:
+            self._load_job_file(Path(path))
+
+    def _load_job_file(self, path):
+        from ..core.aufgaben import install, parse_bundle
+        try:
+            jobs = parse_bundle(path.read_text(encoding="utf-8-sig"))
+            install(self.config, jobs, self.db)
+            self.matches_tab.refresh()
+            self.offers_tab.refresh()
+        except (ValueError, TypeError, OSError) as e:
+            error_box(self, "Import", str(e))
+            return False
+        self.watch_tab.reload()
+        self.matches_tab.refresh_watch_filter()
+        self.status(f"{len(jobs)} Suchprofile übernommen")
+        return True
+
     def show_tab_help(self):
         name = self.tabs.tabText(self.tabs.currentIndex()).split(" (")[0]
         self.show_help(name)
@@ -254,6 +305,7 @@ class MainWindow(QMainWindow):
         self.log(msg)
         self.status(msg)
         self.matches_tab.refresh()
+        self.offers_tab.refresh()
         self.prospekte_tab.refresh()
         if self.tabs.currentWidget() is self.sources_tab:
             self.sources_tab.reload()
@@ -300,6 +352,12 @@ class MainWindow(QMainWindow):
         return due
 
     def tick(self):
+        today = datetime.now().date()
+        if today != self._offer_day:
+            self._offer_day = today
+            self.matches_tab.refresh()
+            self.offers_tab.refresh()
+            self.prospekte_tab.refresh()
         self.update_next_label()
         wr = self.config.settings.get("weekly_report") or {}
         if wr.get("enabled"):

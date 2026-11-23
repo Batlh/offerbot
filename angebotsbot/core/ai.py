@@ -14,7 +14,7 @@ ENV_KEYS = {"claude": "ANTHROPIC_API_KEY", "openai": "OPENAI_API_KEY"}
 PROSPEKT_PROMPT = """Du bekommst eine Seite aus einem Supermarkt-/Händler-Prospekt ({retailer}).
 Liste ALLE Angebote auf dieser Seite als JSON auf, ohne weiteren Text:
 {{"angebote":[{{"produkt":"...","marke":"...","preis":1.29,"streichpreis":null,"menge":"250 g","grundpreis":"5.16 €/kg","hinweis":"z. B. nur mit App, ab Donnerstag"}}]}}
-Regeln: preis als Zahl in Euro (Punkt als Dezimaltrenner). Unbekannte Felder null. Keine Angebote erfinden.
+Regeln: preis als Zahl in Euro (Punkt als Dezimaltrenner). Unbekannte Felder null. Keine Angebote erfinden. Bonusguthaben, Pfand und bedingte Coupons separat im Hinweis mit Betrag nennen. Als preis den Kaufpreis vor Guthaben und ohne Pfand verwenden.
 {extra}"""
 
 

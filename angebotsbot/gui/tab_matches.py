@@ -198,6 +198,7 @@ class OffersTab(QWidget):
             Col("Gültig", valid_text, width=140),
             Col("Quelle", lambda r: r["source_name"], width=150),
             Col("Kategorie", lambda r: r["category"]),
+            Col("Hinweise", lambda r: r["info"] or ""),
         ]
         self.view, self.model, self.proxy = make_table(cols, self)
         self.view.sortByColumn(0, Qt.DescendingOrder)

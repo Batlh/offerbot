@@ -245,7 +245,7 @@ class OfferTile extends StatelessWidget {
       if (o.baseText.isNotEmpty) o.baseText,
       if (o.validText.isNotEmpty) o.validText,
       if (o.priceCheck.isNotEmpty) o.priceCheck,
-      if (o.info.isNotEmpty && o.source.startsWith('Amazon')) o.info,
+      if (o.info.isNotEmpty) o.info,
     ].where((s) => s.isNotEmpty).join(' · ');
     return ListTile(
       title: Text(o.title, maxLines: 2, overflow: TextOverflow.ellipsis,

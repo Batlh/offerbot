@@ -54,7 +54,10 @@ def _offer_json(r, db=None) -> dict[str, Any]:
             pid, page = int(a), int(b)
         except ValueError:
             pass
+    from .validity import end_date
+    until = end_date(r["valid_to"], r["found_at"])
     out = {
+        "expires": until.isoformat() if until else "",
         "uid": r["uid"] if "uid" in keys else r["offer_uid"],
         "title": r["title"] or "", "price": r["price"], "old_price": r["old_price"],
         "merchant": r["merchant"] or "", "kind": r["kind"] or "", "url": url if url.startswith("http") else "",
