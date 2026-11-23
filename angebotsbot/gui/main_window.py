@@ -89,6 +89,16 @@ class MainWindow(QMainWindow):
         self.jobs_menu.aboutToShow.connect(self._jobs_menu)
         help_menu = self.menuBar().addMenu("Hilfe")
         help_menu.addAction("Hilfe zum aktuellen Tab", self.show_tab_help).setShortcut("F1")
+        import sys
+        self._update_worker = None
+        self._pending_update = None
+        self._update_restart = False
+        if getattr(sys, "frozen", False) and sys.platform == "win32":
+            self._update_action = help_menu.addAction("Nach Updates suchen", lambda: self.check_update(True))
+            self._update_timer = QTimer(self)
+            self._update_timer.timeout.connect(self.check_update)
+            self._update_timer.start(6 * 60 * 60 * 1000)
+            QTimer.singleShot(5000, self, self.check_update)
         help_menu.addAction("Erste Schritte", lambda: self.show_help("Erste Schritte"))
         if self.config.first_start:
             QTimer.singleShot(0, self, lambda: self.show_help("Erste Schritte"))
@@ -624,8 +634,46 @@ class MainWindow(QMainWindow):
         self.quit()
         e.accept()
 
+    def check_update(self, manual=False):
+        import sys
+        from PySide6.QtWidgets import QMessageBox
+        from ..core import updates
+        if self._pending_update:
+            if manual and QMessageBox.question(self, "Update installieren", "Jetzt zum Aktualisieren neu starten?") == QMessageBox.Yes:
+                self._update_restart = True
+                self.quit()
+            return
+        if self._update_worker and self._update_worker.isRunning():
+            return
+        root = Path(sys.executable).resolve().parent
+        worker = Task(lambda log, progress, cancel: updates.prepare(root, cancel), self)
+        self._update_worker = worker
+        def ready(result):
+            if result:
+                self._pending_update = result
+                self._update_action.setText(f"{result[0]} installieren und neu starten")
+                self.log(f"Update {result[0]} geladen. Installation beim Beenden.")
+                self.status(f"Update {result[0]} bereit – Neustart über Hilfe möglich.")
+            elif manual:
+                self.status("Die installierte Version ist aktuell.")
+        worker.finished_ok.connect(ready)
+        worker.failed.connect(lambda msg: (self.log(f"Updateprüfung: {msg.splitlines()[0]}"),
+                                           self.status(msg.splitlines()[0]) if manual else None))
+        worker.start()
+
     def quit(self):
+        if self._quitting:
+            return
         self._quitting = True
+        if self._update_worker and self._update_worker.isRunning():
+            self._update_worker.cancel()
+            self._update_worker.wait()
+        if self._pending_update:
+            from ..core import updates
+            try:
+                updates.install(self._pending_update[1], self._update_restart)
+            except (OSError, ValueError) as error:
+                error_box(self, "Update", str(error))
         if getattr(self, "tg_bot", None):
             self.tg_bot.stop()
         if getattr(self, "api_server", None):

@@ -3,6 +3,10 @@
 Alle Versionen des AngebotsBot (offerbot). Die neueste steht oben.
 Jede Release auf GitHub enthält die fertige Windows-Version als ZIP (`AngebotsBot-windows.zip`).
 
+## 1.10.7 – 2026-11-23
+### Neu
+- Windows und Android prüfen GitHub auf neue stabile Versionen und laden das passende Release-Paket automatisch herunter. Windows installiert beim Beenden, Android öffnet die Systeminstallation. Die Daten bleiben beim Update erhalten.
+
 ## 1.10.6 – 2026-11-23
 ### Neu
 - Offizielle REWE-Marktangebote mit Bonus- und Pfandangaben, wöchentlichem Zwischenspeicher und Prospektabruf über den integrierten Browser einschließlich automatischer Suche nach veröffentlichten PDF-Downloads und manueller PDF-Übernahme. Vorgabe für Trier: Wasserweg 2.

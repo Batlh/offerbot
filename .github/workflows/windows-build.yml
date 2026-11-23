@@ -75,7 +75,7 @@ jobs:
         run: python -m pytest -q tests
 
       - name: EXE bauen
-        run: pyinstaller --noconfirm --windowed --name AngebotsBot --collect-all rapidocr_onnxruntime --collect-all playwright --collect-data pymupdf --add-data "README.md:." main.py
+        run: pyinstaller --noconfirm --windowed --name AngebotsBot --collect-all rapidocr_onnxruntime --collect-all playwright --collect-data pymupdf --add-data "README.md:." --add-data "angebotsbot/core/install_update.ps1:angebotsbot/core" main.py
 
       - name: Paket schnueren
         shell: pwsh

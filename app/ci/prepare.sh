@@ -16,6 +16,8 @@ MAN=android/app/src/main/AndroidManifest.xml
 sed -i "s/android:label=\"[^\"]*\"/android:label=\"AngebotsBot\" android:usesCleartextTraffic=\"true\"/" "$MAN"
 grep -q 'android.permission.INTERNET' "$MAN" || \
   sed -i 's#<manifest xmlns:android="http://schemas.android.com/apk/res/android">#<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.CAMERA"/>#' "$MAN"
+cp ci/update/MainActivity.kt android/app/src/main/kotlin/io/github/batlh/offerbot/MainActivity.kt
+python3 ci/update/manifest.py
 python3 ci/set_signing.py android/app/build.gradle.kts
 if [ -f android/build.gradle.kts ] && ! grep -q 'lintVital' android/build.gradle.kts; then
   cat >> android/build.gradle.kts <<'EOT'
