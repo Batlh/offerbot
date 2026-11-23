@@ -9,13 +9,14 @@ from bs4 import BeautifulSoup
 from requests import HTTPError
 
 from ..config import REWE_MARKT
+from ..net import FetchError
 from ..models import Offer
 from ..prices import parse_price
 from .base import FieldSpec, SourceType, register
 
 
 def read_market(page, url, market, today):
-    soup = BeautifulSoup(page, "lxml", from_encoding="utf-8")
+    soup = BeautifulSoup(page.decode("utf-8") if isinstance(page, bytes) else page, "lxml")
     year, week, weekday = today.isocalendar()
     monday = today - timedelta(days=weekday - 1)
     viewer = ""
@@ -50,6 +51,64 @@ def read_market(page, url, market, today):
     return viewer, list(offers.values())
 
 
+def open_brochure(settings, market_url, viewer, db, log, cancelled):
+    """Im sichtbaren Offerbot-Browser blättern und einen vom Nutzer gewählten PDF-Download übernehmen."""
+    from hashlib import sha256
+    from tempfile import TemporaryDirectory
+
+    import pymupdf
+    from playwright.sync_api import Error, sync_playwright
+
+    from ..paths import prospekt_dir
+    from ..browser_setup import launch, prepare_env
+
+    market = re.fullmatch(r"https://www\.rewe\.de/angebote/[^/]+/(\d+)/[^/]+/?", market_url)
+    if not market:
+        raise ValueError("Ungültige REWE-Marktadresse.")
+    target_dir = prospekt_dir() / "REWE" / market[1]
+    target_dir.mkdir(parents=True, exist_ok=True)
+    prepare_env()
+    with TemporaryDirectory(dir=target_dir) as tmp, sync_playwright() as playwright:
+        from pathlib import Path
+        browser = launch(playwright, settings, log, headless=False)
+        try:
+            context = browser.new_context(locale="de-DE", accept_downloads=True)
+            downloads = []
+            def listen(page):
+                page.on("download", downloads.append)
+            context.on("page", listen)
+            page = context.new_page()
+            page.goto(viewer or market_url, wait_until="domcontentloaded", timeout=60000)
+            log("Im geöffneten Browser den Prospekt ansehen oder den PDF-Download wählen.")
+            while not cancelled() and not downloads and context.pages:
+                try:
+                    context.pages[-1].wait_for_timeout(250)
+                except Error:
+                    if not browser.is_connected() or not context.pages:
+                        break
+                    raise
+            if cancelled() or not downloads:
+                return None
+            file = Path(tmp) / "prospekt.pdf"
+            downloads[0].save_as(file)
+            with pymupdf.open(file) as document:
+                if not document.is_pdf or not document.page_count:
+                    raise ValueError("Der gewählte Download ist kein lesbarer PDF-Prospekt.")
+            digest = sha256(file.read_bytes()).hexdigest()
+            key = f"{market_url}#pdf-{digest}"
+            if db.prospekt_known(key):
+                log("Dieser Prospekt ist bereits gespeichert.")
+                return None
+            target = target_dir / f"{digest}.pdf"
+            file.replace(target)
+            title = Path(downloads[0].suggested_filename).stem or "REWE-Prospekt"
+            address = urlsplit(market_url).path.rstrip("/").split("/")[-1]
+            return db.add_prospekt(f"REWE {address.removeprefix('rewe-').replace('-', ' ').title()}", title,
+                                   key, str(target))
+        finally:
+            browser.close()
+
+
 def run(ctx, source):
     url = source.settings.get("markt_url", "").strip().split("?")[0].split("#")[0]
     match = re.fullmatch(r"https://www\.rewe\.de/angebote/[^/]+/(\d+)/[^/]+/?", url)
@@ -67,7 +126,9 @@ def run(ctx, source):
                          "Nächster automatischer Abruf in der neuen Angebotswoche.")
     if cache.get("week") != week:
         try:
-            page = ctx.fetcher.public_file(url)
+            if not ctx.settings.get("browser_mode"):
+                raise FetchError("Für REWE bitte unter Einstellungen den Browser-Modus einschalten.")
+            page = ctx.fetcher.render_market(url)
         except HTTPError as error:
             code = error.response.status_code if error.response is not None else None
             if not dry and code in (403, 429):
@@ -84,7 +145,7 @@ def run(ctx, source):
 
 
 register(SourceType(key="rewe_markt", label="REWE – offizieller Marktprospekt", group="Prospekte",
-    description="Liest die Angebotskarten des ausgewählten Markts direkt bei REWE. Der normale Lauf lädt die "
+    description="Liest im integrierten Browser die Angebotskarten des ausgewählten Markts direkt bei REWE. Der normale Lauf lädt die "
                 "Wochenangebote einmal je Filiale und Kalenderwoche. Testen prüft live und zeigt den Prospektlink.",
     fields=[FieldSpec("markt_url", "Offizielle REWE-Angebotsseite", default=REWE_MARKT,
                       help="Auf rewe.de den Markt wählen und die Adresse seiner Angebotsseite kopieren.")], run=run))

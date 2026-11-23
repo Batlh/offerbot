@@ -890,9 +890,10 @@ def test_rewe_wasserweg_wochenabruf(env):
     from angebotsbot.core.sources.rewe import run
     cfg, db, _ = env
     y, w, _ = datetime.now(ZoneInfo("Europe/Berlin")).date().isocalendar()
+    cfg.settings["browser_mode"] = True
     class Marktseite:
         calls = 0
-        def public_file(self, url):
+        def render_market(self, url):
             self.calls += 1
             return (f'<iframe title="Prospekt" data-src="https://services.publitas.com/rewe/publications?week={w}&amp;wwident=840740"></iframe>'
                     f'<div data-offer-id="1" data-offer-wwident="840740" data-offer-week="{y}/{w}">'
@@ -904,3 +905,35 @@ def test_rewe_wasserweg_wochenabruf(env):
         offer, = run(ctx, rewe_quelle())
         assert offer.price == 0.99 and "0,10 €" in offer.info
     assert fetch.calls == 1 and "wwident=840740" in db.meta_get("rewe-markt:840740")
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Edge-Test unter Windows")
+def test_rewe_browser_uebernimmt_pdf(env, monkeypatch):
+    import base64
+    from playwright.sync_api import Browser
+    from angebotsbot.core import browser_setup
+    from angebotsbot.core.sources.rewe import open_brochure
+    from angebotsbot.core.config import REWE_MARKT
+    cfg, db, _ = env
+    with pymupdf.open() as doc:
+        doc.new_page()
+        pdf = base64.b64encode(doc.tobytes()).decode()
+    original = Browser.new_context
+
+    def with_fixture(browser, **kw):
+        ctx = original(browser, **kw)
+        html = (f'<a id="pdf" download="Wochenprospekt.pdf" href="data:application/pdf;base64,{pdf}">PDF</a>'
+                '<script>setTimeout(() => document.querySelector("a").click(), 100)</script>')
+        ctx.route("https://www.rewe.de/**", lambda route: route.fulfill(content_type="text/html", body=html))
+        return ctx
+
+    monkeypatch.setattr(Browser, "new_context", with_fixture)
+    launch = browser_setup.launch
+    monkeypatch.setattr(browser_setup, "launch", lambda p, settings, log, **kw:
+                        launch(p, settings, log, headless=True))
+    import time
+    deadline = time.monotonic() + 35
+    pid = open_brochure(cfg.settings, REWE_MARKT, "", db, lambda *_: None, lambda: time.monotonic() > deadline)
+    assert pid and db.prospekt(pid)["title"] == "Wochenprospekt"
+    with pymupdf.open(db.prospekt(pid)["pdf_path"]) as saved:
+        assert saved.page_count == 1

@@ -270,7 +270,20 @@ class SourcesTab(QWidget):
         cache = json.loads(self.main.db.meta_get("rewe-markt:" + market[1]) or "{}")
         year, week, _ = date.today().isocalendar()
         viewer = cache.get("viewer", "") if cache.get("week") == f"{year}-{week:02}" else ""
-        open_url(viewer or url)
+        if not self.main.config.settings.get("browser_mode"):
+            QMessageBox.information(self, "REWE", "Bitte zuerst unter Einstellungen den Browser-Modus einschalten.")
+            return
+        from ..core.sources.rewe import open_brochure
+
+        def finished(pid):
+            self.main._end()
+            if pid:
+                self.main.prospekte_tab.refresh()
+                self.main.process_prospekte([pid])
+
+        self.main._start(lambda log, progress, stop: open_brochure(self.main.config.settings, url, viewer,
+                                                                   self.main.db, log, stop),
+                         "REWE-Prospekt im Browser", finished)
 
     def choose_store(self):
         from PySide6.QtWidgets import QInputDialog
@@ -307,7 +320,7 @@ class SourcesTab(QWidget):
         s = self.current
         if not s:
             return
-        url = s.settings.get("start_url") or s.settings.get("url") or s.settings.get("profile_url") or ""
+        url = s.settings.get("markt_url") or s.settings.get("start_url") or s.settings.get("url") or s.settings.get("profile_url") or ""
         if not url.startswith("http"):
             QMessageBox.information(self, "Prüfung", "Diese Quelle hat keine feste Seitenadresse.")
             return
