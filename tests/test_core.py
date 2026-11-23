@@ -882,7 +882,7 @@ def test_filialprospekt_auswahl_und_vorschau(env):
         run(ctx, src)
 
 
-def test_rewe_wasserweg_wochenabruf(env):
+def test_rewe_wasserweg_wochenabruf(env, monkeypatch):
     from datetime import datetime
     from zoneinfo import ZoneInfo
     from angebotsbot.core.config import rewe_quelle
@@ -899,11 +899,27 @@ def test_rewe_wasserweg_wochenabruf(env):
                     f'<div data-offer-id="1" data-offer-wwident="840740" data-offer-week="{y}/{w}">'
                     '<h3 data-testid="offer-title-link">Monster</h3><span class="cor-offer-price__tag-price">0,99 €</span>'
                     '<span data-testid="cor-loyalty-badge">0,10 €</span></div>').encode()
+    from angebotsbot.core.sources import rewe
+    from angebotsbot.core.sources.rewe import pdf_links
+    viewer = "https://services.publitas.com/rewe/publications"
+    assert list(pdf_links('<a href="/aktuell.pdf">PDF</a>', viewer)) == ["https://services.publitas.com/aktuell.pdf"]
+    assert not list(pdf_links('<a href="index.html">Prospekt ansehen</a>', viewer))
+    pdf_calls = []
+    def pdf_download(ctx, url):
+        pdf_calls.append(url)
+        with pymupdf.open() as doc:
+            doc.new_page()
+            doc.new_page()
+            return doc.tobytes()
+    monkeypatch.setattr(rewe, "fetch_brochure_pdf", pdf_download)
     fetch = Marktseite()
     ctx = RunContext(fetch, db, cfg.settings, [])
     for _ in range(2):
         offer, = run(ctx, rewe_quelle())
         assert offer.price == 0.99 and "0,10 €" in offer.info
+    assert len(pdf_calls) == 1 and len(ctx.extra["new_prospekte"]) == 1
+    with pymupdf.open(db.prospekt(ctx.extra["new_prospekte"][0])["pdf_path"]) as doc:
+        assert doc.page_count == 2
     assert fetch.calls == 1 and "wwident=840740" in db.meta_get("rewe-markt:840740")
 
 

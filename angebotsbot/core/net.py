@@ -53,11 +53,14 @@ class Fetcher:
         if wait > 0:
             time.sleep(wait)
 
-    def _public_delay(self, url: str) -> float:
+    def _public_delay(self, url: str, *, rewe_viewer=False) -> float:
         """Öffentliche Filialseiten und Seitenbilder ohne Cookies oder Weiterleitungen laden."""
         from protego import Protego
         host = urlparse(url).netloc
-        if urlparse(url).scheme != "https" or host not in ("www.kaufda.de", "content-media.bonial.biz", "www.rewe.de"):
+        allowed = host in ("www.kaufda.de", "content-media.bonial.biz", "www.rewe.de")
+        if rewe_viewer:
+            allowed = host in ("publitas.com", "publitas.net") or host.endswith((".publitas.com", ".publitas.net"))
+        if urlparse(url).scheme != "https" or urlparse(url).username is not None or not allowed:
             raise FetchError("Unerwarteter Anbieter der Prospektseite.")
         agent = "Offerbot"
 
