@@ -57,7 +57,7 @@ class Fetcher:
         """Öffentliche Filialseiten und Seitenbilder ohne Cookies oder Weiterleitungen laden."""
         from protego import Protego
         host = urlparse(url).netloc
-        if urlparse(url).scheme != "https" or host not in ("www.kaufda.de", "content-media.bonial.biz"):
+        if urlparse(url).scheme != "https" or host not in ("www.kaufda.de", "content-media.bonial.biz", "www.rewe.de"):
             raise FetchError("Unerwarteter Anbieter der Prospektseite.")
         agent = "Offerbot"
 

@@ -114,6 +114,9 @@ class SourcesTab(QWidget):
         self.tf = QFormLayout(self.typebox)
         self.rl.addWidget(self.typebox)
         bl2 = QHBoxLayout()
+        self.b_rewe = QPushButton("Wochenprospekt bei REWE öffnen")
+        self.b_rewe.clicked.connect(self.open_rewe)
+        self.rl.addWidget(self.b_rewe)
         self.b_store = QPushButton("Filiale auswählen …")
         self.b_store.clicked.connect(self.choose_store)
         self.rl.addWidget(self.b_store)
@@ -156,6 +159,7 @@ class SourcesTab(QWidget):
         while self.tf.rowCount():
             self.tf.removeRow(0)
         self.field_widgets = {}
+        self.b_rewe.setVisible(bool(s and s.type == "rewe_markt"))
         self.b_store.setVisible(bool(s and s.type == "filialprospekt"))
         for w in (self.name, self.group, self.interval, self.enabled, self.b_save, self.b_test, self.b_run):
             w.setEnabled(s is not None)
@@ -248,6 +252,25 @@ class SourcesTab(QWidget):
             self.main.config.save()
             self.current = None
             self.reload()
+
+    def open_rewe(self):
+        from urllib.parse import urlsplit
+        import json
+        import re
+        from datetime import date
+        source = self._collect()
+        if not source:
+            return
+        url = source.settings.get("markt_url", "").strip()
+        parts = urlsplit(url)
+        market = re.fullmatch(r"/angebote/[^/]+/(\d+)/[^/]+/?", parts.path)
+        if parts.scheme != "https" or parts.netloc != "www.rewe.de" or not market:
+            error_box(self, "REWE", "Bitte zuerst eine gültige REWE-Marktseite eintragen.")
+            return
+        cache = json.loads(self.main.db.meta_get("rewe-markt:" + market[1]) or "{}")
+        year, week, _ = date.today().isocalendar()
+        viewer = cache.get("viewer", "") if cache.get("week") == f"{year}-{week:02}" else ""
+        open_url(viewer or url)
 
     def choose_store(self):
         from PySide6.QtWidgets import QInputDialog

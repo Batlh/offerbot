@@ -880,3 +880,27 @@ def test_filialprospekt_auswahl_und_vorschau(env):
     html = '<script id="__NEXT_DATA__">' + json.dumps({"props": {"pageProps": {"pageInformation": pi}}}) + '</script>'
     with pytest.raises(ValueError, match="Filialkennung"):
         run(ctx, src)
+
+
+def test_rewe_wasserweg_wochenabruf(env):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    from angebotsbot.core.config import rewe_quelle
+    from angebotsbot.core.sources import RunContext
+    from angebotsbot.core.sources.rewe import run
+    cfg, db, _ = env
+    y, w, _ = datetime.now(ZoneInfo("Europe/Berlin")).date().isocalendar()
+    class Marktseite:
+        calls = 0
+        def public_file(self, url):
+            self.calls += 1
+            return (f'<iframe title="Prospekt" data-src="https://services.publitas.com/rewe/publications?week={w}&amp;wwident=840740"></iframe>'
+                    f'<div data-offer-id="1" data-offer-wwident="840740" data-offer-week="{y}/{w}">'
+                    '<h3 data-testid="offer-title-link">Monster</h3><span class="cor-offer-price__tag-price">0,99 €</span>'
+                    '<span data-testid="cor-loyalty-badge">0,10 €</span></div>').encode()
+    fetch = Marktseite()
+    ctx = RunContext(fetch, db, cfg.settings, [])
+    for _ in range(2):
+        offer, = run(ctx, rewe_quelle())
+        assert offer.price == 0.99 and "0,10 €" in offer.info
+    assert fetch.calls == 1 and "wwident=840740" in db.meta_get("rewe-markt:840740")

@@ -132,7 +132,7 @@ def lu_extra_sources() -> list[Source]:
 
 # Händlerkennung und Beispieladresse aus dem öffentlichen Filialverzeichnis in Trier.
 FILIALEN = {
-    "REWE": ("REWE/v-r101", "Simeonstraße 15"),
+    "REWE": ("REWE/v-r101", "Wasserweg 2"),
     "EDEKA": ("EDEKA/v-r107", "Schöndorfer Straße 24"),
     "E center": ("E-center/v-r110", "Zurmaiener Straße 160-168"),
     "Netto Marken-Discount": ("Netto-Marken-Discount/v-r9", "Schöndorfer Straße 84"),
@@ -147,10 +147,18 @@ FILIALEN = {
 }
 
 
+REWE_MARKT = "https://www.rewe.de/angebote/trier/840740/rewe-wasserweg-2/"
+
+
+def rewe_quelle():
+    return Source("REWE – offizieller Marktprospekt", "rewe_markt", {"markt_url": REWE_MARKT},
+                  group="Prospekte", interval_min=60)
+
+
 def filialquellen():
     return [Source(f"{name} – Filialprospekt", "filialprospekt",
                    {"haendler": name, "ort": "Trier", "filiale": street},
-                   name not in {"ALDI SÜD", "Kaufland", "Lidl"}, "Prospekte", 720)
+                   name not in {"REWE", "ALDI SÜD", "Kaufland", "Lidl"}, "Prospekte", 720)
             for name, (_, street) in FILIALEN.items()]
 
 
@@ -184,6 +192,7 @@ def default_sources() -> list[Source]:
             "max_results": 40,
         }, True, "Prospekte", 360),
         kaufland_source(),
+        rewe_quelle(),
         *filialquellen(),
         Source("Lidl Prospekte", "prospekt_schwarz", {
             "retailer": "Lidl",
@@ -228,7 +237,7 @@ class Config:
                 self.watchlist = default_watchlist()
                 self.sources = default_sources()
                 self.settings["migrations"] = ["1.1-aldi", "1.1-kaufda", "1.4-lu-fr", "1.5-metro-lu", "1.6-kaufland",
-                                               "1.10-ua", "1.10.6-filialen"]
+                                               "1.10-ua", "1.10.6-filialen", "1.10.6-rewe-direkt"]
                 self.save()
                 return
             raw = json.loads(self.path.read_text(encoding="utf-8"))
@@ -292,6 +301,15 @@ class Config:
                         source.settings.update(ort="", filiale="")
                     self.sources.append(source)
             done.add("1.10.6-filialen")
+            changed = True
+        if "1.10.6-rewe-direkt" not in done:
+            if not any(s.type == "rewe_markt" for s in self.sources):
+                source = rewe_quelle()
+                if self.region().get("ort", "").strip().casefold() != "trier":
+                    source.enabled = False
+                    source.settings["markt_url"] = ""
+                self.sources.append(source)
+            done.add("1.10.6-rewe-direkt")
             changed = True
         if changed:
             self.settings["migrations"] = sorted(done)
