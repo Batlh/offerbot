@@ -1,7 +1,7 @@
 name: offerbot
 description: Begleit-App zum AngebotsBot (PC) – Einkaufsliste (auch ohne PC), Treffer, Watchlist und Prospekte.
 publish_to: none
-version: 1.10.7+1
+version: 1.10.8+1
 
 environment:
   sdk: ">=3.5.0 <4.0.0"

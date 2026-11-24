@@ -60,7 +60,11 @@ Daten liegen im Ordner `data/` neben der EXE (nie committen).
 
 - Python 3.12, PySide6. Lokal: `pip install -r requirements.txt`, Start `python main.py`.
 - Flutter muss lokal nicht vorhanden sein – die CI (`app/ci/prepare.sh`) erzeugt den Android-Rahmen.
-  Signatur: fester Schlüssel `app/ci/offerbot.keystore`, damit Updates über die installierte App gehen.
+  Paketname `io.github.batlh.offerbot`. Signatur: Release-Schlüssel nur als GitHub-Secret
+  (`SIGNING_STORE_B64` = Keystore als Base64, `SIGNING_STORE_PASSWORD`, Alias `offerbot`); der Build bricht ohne
+  Secrets ab und prüft den SHA-256 des Zertifikats
+  (`5F:9C:6F:BB:90:EA:43:02:7E:45:D3:DA:7E:EC:AA:62:BF:ED:46:8E:74:3F:18:FA:AB:A6:15:19:D9:43:94:E9`).
+  Den Schlüssel niemals ins Repo legen oder ersetzen – mit einem anderen Schlüssel gehen keine Updates mehr.
 - Einkaufsliste: Einträge haben eine feste `sid` („o:<Angebot>“ / „f:<Zufall>“) und `updated` (UTC);
   beim Abgleich gewinnt die neuere Änderung, Löschen = Grabstein (`deleted`). PC und App gleich halten
   (`db.shopping_sync` ↔ `ZettelRepo.merge`), auch die Mengen-Erkennung (`units.split_quantity` ↔ `splitQuantity`).

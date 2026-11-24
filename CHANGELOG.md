@@ -3,6 +3,13 @@
 Alle Versionen des AngebotsBot (offerbot). Die neueste steht oben.
 Jede Release auf GitHub enthält die fertige Windows-Version als ZIP (`AngebotsBot-windows.zip`).
 
+## 1.10.8 – 2026-11-24
+### Geändert
+- **Android: neuer, eigener Signierschlüssel** für `io.github.batlh.offerbot` (vorher lag ein Schlüssel offen im
+  Repo). **Einmalig nötig:** die bisherige App deinstallieren und diese APK neu installieren – Android lässt ein
+  Update mit anderem Schlüssel nicht zu. Vorher die Einkaufsliste mit dem PC abgleichen (Liste → „Jetzt mit PC
+  abgleichen“), sonst geht sie verloren. Danach laufen Updates wieder normal.
+
 ## 1.10.7 – 2026-11-23
 ### Neu
 - Windows und Android prüfen GitHub auf neue stabile Versionen und laden das passende Release-Paket automatisch herunter. Windows installiert beim Beenden, Android öffnet die Systeminstallation. Die Daten bleiben beim Update erhalten.

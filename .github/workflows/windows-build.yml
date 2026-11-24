@@ -36,6 +36,23 @@ jobs:
         run: |
           mkdir -p ~/.gradle/init.d
           cp ci/maven-mirror.gradle ci/compile-sdk.gradle ~/.gradle/init.d/
+      - name: Signierschlüssel bereitstellen
+        if: github.event_name != 'pull_request'
+        env:
+          STORE_B64: ${{ secrets.SIGNING_STORE_B64 }}
+          STORE_PW: ${{ secrets.SIGNING_STORE_PASSWORD }}
+        run: |
+          # Ohne Secrets nicht mit dem Debug-Schlüssel weiterbauen – solche APKs ließen sich nicht als Update installieren
+          if [ -z "$STORE_B64" ] || [ -z "$STORE_PW" ]; then
+            echo "::error::Secrets SIGNING_STORE_B64 und SIGNING_STORE_PASSWORD fehlen (Settings → Secrets and variables → Actions)"
+            exit 1
+          fi
+          printf '%s' "$STORE_B64" | base64 -d > "$RUNNER_TEMP/offerbot-release.jks"
+          {
+            echo "OB_KEYSTORE=$RUNNER_TEMP/offerbot-release.jks"
+            echo "OB_KEYSTORE_PW=$STORE_PW"
+            echo "OB_KEY_ALIAS=offerbot"
+          } >> "$GITHUB_ENV"
       - name: APK bauen
         run: |
           VERSION=$(python3 -c "import re;print(re.search(r'__version__ = \"(.+?)\"', open('../angebotsbot/__init__.py', encoding='utf-8').read()).group(1))")
@@ -45,6 +62,13 @@ jobs:
             echo "Neuer Versuch in 30 Sekunden"; sleep 30
           done
           mv build/app/outputs/flutter-apk/app-release.apk ../AngebotsBot.apk
+      - name: Signatur prüfen
+        if: github.event_name != 'pull_request'
+        run: |
+          SIGNER=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
+          "$SIGNER" verify --print-certs ../AngebotsBot.apk | tee signatur.txt
+          # Fingerabdruck des Release-Schlüssels io.github.batlh.offerbot (seit 1.10.8)
+          grep -qi "5f9c6fbb90ea43027e45d3da7eecaa62bfed468e743f18faaba61519d94394e9" signatur.txt
       - uses: actions/upload-artifact@v7
         with:
           name: android-apk
