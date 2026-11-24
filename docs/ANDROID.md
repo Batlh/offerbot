@@ -85,7 +85,7 @@ optional eigene Quellen direkt auf dem Handy (mydealz, kaufDA, Bonial, Lidl – 
 
 ### Hinweise
 - Signatur: eigener Release-Schlüssel (seit 1.10.8), nur als GitHub-Secret `SIGNING_STORE_B64` +
-  `SIGNING_STORE_PASSWORD`, Alias `offerbot`. Zertifikat SHA-256:
+  `ANDROID_KEY_PASSWORD`, Alias `offerbot`. Zertifikat SHA-256:
   `5F:9C:6F:BB:90:EA:43:02:7E:45:D3:DA:7E:EC:AA:62:BF:ED:46:8E:74:3F:18:FA:AB:A6:15:19:D9:43:94:E9`.
   Der früher offen im Repo liegende Schlüssel ist entfernt.
 - Datenquelle austauschbar: `app/lib/data/source.dart` (`DataSource`) – Grundlage für Option B.

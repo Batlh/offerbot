@@ -40,11 +40,11 @@ jobs:
         if: github.event_name != 'pull_request'
         env:
           STORE_B64: ${{ secrets.SIGNING_STORE_B64 }}
-          STORE_PW: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          STORE_PW: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           # Ohne Secrets nicht mit dem Debug-Schlüssel weiterbauen – solche APKs ließen sich nicht als Update installieren
           if [ -z "$STORE_B64" ] || [ -z "$STORE_PW" ]; then
-            echo "::error::Secrets SIGNING_STORE_B64 und SIGNING_STORE_PASSWORD fehlen (Settings → Secrets and variables → Actions)"
+            echo "::error::Secrets SIGNING_STORE_B64 und ANDROID_KEY_PASSWORD fehlen (Settings → Secrets and variables → Actions)"
             exit 1
           fi
           printf '%s' "$STORE_B64" | base64 -d > "$RUNNER_TEMP/offerbot-release.jks"
