@@ -46,11 +46,15 @@ verteilt wird, fällt die EXE als Ganzes unter die AGPL. Das README sagt aber nu
     `core/prospekte/fetchers.py` (PDF aus Bildern bauen → z. B. mit Pillow), `core/api.py` (Seitenbilder für die
     Handy-App), `core/sources/rewe.py`, dazu `tests/test_core.py`, `requirements.txt` und `--collect-data pymupdf`
     im Workflow. Die Seitensuche im PDF-Viewer läuft über Qt (QtPdf), sie ist nicht betroffen.
+    Texterkennung bleibt **RapidOCR** (PaddleOCR-Modelle über ONNX Runtime, Apache-2.0/MIT). Das volle PaddleOCR
+    mit PaddlePaddle wäre viel größer und brächte für Prospekte kaum mehr. pdfplumber ist nicht nötig: pypdfium2
+    liefert Text samt Zeichen-Koordinaten selbst. Optional: Koordinaten nutzen, um Preise genauer dem Produkt
+    daneben zuzuordnen (heute: Preis aus dem Text in der Nähe geraten).
   - b) AGPL akzeptieren: im README vermerken, dass die EXE unter AGPL steht, AGPL-Text und Link zum Quellcode
     in die EXE packen.
 - [ ] **Lizenzhinweise in der EXE**: Fenster „Über / Lizenzen“ und eine Datei `THIRD_PARTY_LICENSES.txt` im ZIP.
   Inhalt: PySide6/Qt (LGPL-3.0, Bibliotheken bleiben austauschbar – Hinweis + Link zum Quellcode), Playwright
-  (Apache-2.0), rapidocr/onnxruntime (Apache-2.0/MIT), requests, BeautifulSoup, lxml, keyring, qrcode usw.
+  (Apache-2.0), RapidOCR + PaddleOCR-Modelle (Apache-2.0), ONNX Runtime (MIT), OpenCV (Apache-2.0), requests, BeautifulSoup, lxml, keyring, qrcode usw.
   Am besten beim Build automatisch erzeugen, z. B. mit `pip-licenses`.
 - [ ] **Lizenzhinweise in der Android-App**: Menüpunkt „Lizenzen“ mit Flutters eingebautem `showLicensePage`
   (listet die Pakete automatisch), dazu App-Version und Link zum Repo.
