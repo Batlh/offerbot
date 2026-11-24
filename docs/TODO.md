@@ -32,3 +32,26 @@ Wo es eine API gibt, ist das ein großer Gewinn: stabiler, schneller, kein Bruch
 - [x] Für Blitzangebote: mydealz-RSS-Feed als Quelle mit Stichwort-/Preisfilter
 - [x] API-Quelle im Kern über die bestehende Registry bereitstellen (WooCommerce Store API), damit neue Schnittstellen ohne Oberflächen-Umbau dazukommen
 - [x] API-Vorrang für konfigurierte WooCommerce-Watchlist-Suchen: HTML-Rückfall nur bei fehlendem Endpunkt; bestehende individuelle Quellen können die Shop-Adresse ergänzen
+
+## 4. Lizenzen (vorgemerkt für 25.11.2026)
+
+Hinweis aus einer Lizenzprüfung: Das Repo steht unter MIT, die Windows-EXE enthält aber **PyMuPDF/MuPDF**. Die gibt es nur
+unter **AGPL** oder mit kommerzieller Lizenz. Weil PyInstaller PyMuPDF in die EXE packt und die EXE über die Releases
+verteilt wird, fällt die EXE als Ganzes unter die AGPL. Das README sagt aber nur „MIT“. Der Quellcode ist ohnehin
+öffentlich, es ist also kein Drama, aber falsch dokumentiert.
+
+- [ ] Entscheiden (Vorschlag: **a**):
+  - **a) PyMuPDF ersetzen**, z. B. durch `pypdfium2` (Apache-2.0/BSD-3), dann bleibt alles MIT.
+    Betroffen sind mehr Dateien als zunächst gedacht: `core/prospekte/pdftext.py` (Text, Seiten als Bild für OCR),
+    `core/prospekte/fetchers.py` (PDF aus Bildern bauen → z. B. mit Pillow), `core/api.py` (Seitenbilder für die
+    Handy-App), `core/sources/rewe.py`, dazu `tests/test_core.py`, `requirements.txt` und `--collect-data pymupdf`
+    im Workflow. Die Seitensuche im PDF-Viewer läuft über Qt (QtPdf), sie ist nicht betroffen.
+  - b) AGPL akzeptieren: im README vermerken, dass die EXE unter AGPL steht, AGPL-Text und Link zum Quellcode
+    in die EXE packen.
+- [ ] **Lizenzhinweise in der EXE**: Fenster „Über / Lizenzen“ und eine Datei `THIRD_PARTY_LICENSES.txt` im ZIP.
+  Inhalt: PySide6/Qt (LGPL-3.0, Bibliotheken bleiben austauschbar – Hinweis + Link zum Quellcode), Playwright
+  (Apache-2.0), rapidocr/onnxruntime (Apache-2.0/MIT), requests, BeautifulSoup, lxml, keyring, qrcode usw.
+  Am besten beim Build automatisch erzeugen, z. B. mit `pip-licenses`.
+- [ ] **Lizenzhinweise in der Android-App**: Menüpunkt „Lizenzen“ mit Flutters eingebautem `showLicensePage`
+  (listet die Pakete automatisch), dazu App-Version und Link zum Repo.
+- [ ] README-Abschnitt „Lizenz“ anpassen: eigener Code MIT, mitgelieferte Bibliotheken mit eigenen Lizenzen.
