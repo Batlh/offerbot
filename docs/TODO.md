@@ -59,3 +59,18 @@ verteilt wird, fällt die EXE als Ganzes unter die AGPL. Das README sagt aber nu
 - [ ] **Lizenzhinweise in der Android-App**: Menüpunkt „Lizenzen“ mit Flutters eingebautem `showLicensePage`
   (listet die Pakete automatisch), dazu App-Version und Link zum Repo.
 - [ ] README-Abschnitt „Lizenz“ anpassen: eigener Code MIT, mitgelieferte Bibliotheken mit eigenen Lizenzen.
+
+## 5. Aus der Durchsicht vom 25.11.2026
+
+- [ ] **Schlüsselwechsel 1.10.8 dokumentieren:** Apps bis einschließlich 1.10.7 sind mit dem alten Schlüssel signiert
+  und können sich nicht selbst auf 1.10.8+ aktualisieren (Android und die Signaturprüfung der App lehnen ab).
+  Einmalig deinstallieren, neue APK installieren, neu koppeln. Hinweis in README (Abschnitt Handy-App),
+  `docs/ANDROID.md` und im CHANGELOG zu 1.10.8; optional erkennt die App den Fall und zeigt genau diesen Hinweis
+  statt „Signatur stimmt nicht“.
+- [ ] **kaufDA-Sonderfall aus dem Code nehmen:** In `core/sources/kaufda.py` ist „Monster Energy → Energydrink“ fest
+  verdrahtet. Stattdessen ein Feld „Ersatzbegriff für Prospekt-Portale“ im Watchlist-Eintrag (per Migration in
+  `config.py` für den bestehenden Monster-Eintrag vorbelegen).
+- [ ] **robots.txt-Fehler in `core/net.py` (`_public_delay`):** Antwortet der Server beim robots.txt mit einem anderen
+  Fehler als 404 (z. B. 403/500), fliegt ein roher `HTTPError` statt einer verständlichen `FetchError`-Meldung, und
+  der Abruf wird bei jeder Anfrage wiederholt. Ergebnis (auch „nicht erreichbar“) je Lauf zwischenspeichern und
+  klar melden: „robots.txt von <Seite> nicht lesbar (HTTP …) – Quelle übersprungen“.
