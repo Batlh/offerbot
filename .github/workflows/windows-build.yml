@@ -99,12 +99,14 @@ jobs:
         run: python -m pytest -q tests
 
       - name: EXE bauen
-        run: pyinstaller --noconfirm --windowed --name AngebotsBot --collect-all rapidocr_onnxruntime --collect-all playwright --collect-data pymupdf --add-data "README.md:." --add-data "angebotsbot/core/install_update.ps1:angebotsbot/core" main.py
+        run: pyinstaller --noconfirm --windowed --name AngebotsBot --collect-all rapidocr_onnxruntime --collect-all playwright --collect-all pypdfium2 --collect-all pypdfium2_raw --add-data "README.md:." --add-data "angebotsbot/core/install_update.ps1:angebotsbot/core" main.py
 
       - name: Paket schnueren
         shell: pwsh
         run: |
           Copy-Item README.md, CHANGELOG.md dist/AngebotsBot/
+          # Lizenzhinweise in _internal: ältere Updater nehmen auf oberster Ebene keine weiteren Dateien an
+          python -m angebotsbot.lizenzen dist/AngebotsBot/_internal/THIRD_PARTY_LICENSES.txt
           Compress-Archive -Path dist/AngebotsBot -DestinationPath AngebotsBot-windows.zip
 
       - uses: actions/upload-artifact@v7

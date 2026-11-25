@@ -5,7 +5,7 @@ import threading
 from pathlib import Path
 from typing import Callable
 
-import pymupdf
+from . import pdfwerk
 
 _ocr_engine = None
 _ocr_lock = threading.Lock()
@@ -30,9 +30,7 @@ def _engine():
 
 
 def page_png(pdf: Path | str, page_no: int, zoom: float = 2.0) -> bytes:
-    with pymupdf.open(pdf) as doc:
-        pix = doc[page_no - 1].get_pixmap(matrix=pymupdf.Matrix(zoom, zoom))
-        return pix.tobytes("png")
+    return pdfwerk.page_image(pdf, page_no, zoom)
 
 
 def ocr_png(png: bytes) -> str:
@@ -59,17 +57,13 @@ def index_pdf(pdf: Path | str, use_ocr: bool = True, progress: Callable[[int, in
               cancel: Callable[[], bool] = lambda: False) -> list[tuple[int, str, bool]]:
     out: list[tuple[int, str, bool]] = []
     can_ocr = use_ocr and ocr_available()
-    with pymupdf.open(pdf) as doc:
-        n = doc.page_count
-        for i, page in enumerate(doc, start=1):
+    for i, n, text, png in pdfwerk.pages(pdf, zoom=2.0):
             if cancel():
                 break
-            text = page.get_text("text") or ""
             used_ocr = False
             if len(text.strip()) < MIN_TEXT and can_ocr:
-                pix = page.get_pixmap(matrix=pymupdf.Matrix(2, 2))
                 try:
-                    text = ocr_png(pix.tobytes("png"))
+                    text = ocr_png(png())
                     used_ocr = True
                 except Exception as e:  # OCR-Fehler auf einer Seite nicht fatal
                     text = text + f"\n[OCR-Fehler: {e}]"

@@ -5,11 +5,55 @@ import sys
 import tempfile
 from pathlib import Path
 
-import pymupdf
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
+
+from angebotsbot.core.prospekte import pdfwerk
+
+
+def text_pdf(text: str, size: float = 14, width: float = 595, height: float = 842, x: float = 72, y: float = 72) -> bytes:
+    """PDF mit eingebettetem Text (eine Zeile je Zeilenumbruch, y von oben gemessen)."""
+    import ctypes
+    import io as _io
+    import pypdfium2 as pdfium
+    import pypdfium2.raw as raw
+    pdf = pdfium.PdfDocument.new()
+    page = pdf.new_page(width, height)
+    for n, line in enumerate(text.split("\n")):
+        obj = raw.FPDFPageObj_NewTextObj(pdf.raw, b"Helvetica", ctypes.c_float(size))
+        buf = ctypes.create_string_buffer((line + "\x00").encode("utf-16-le"))
+        raw.FPDFText_SetText(obj, ctypes.cast(buf, ctypes.POINTER(raw.FPDF_WCHAR)))
+        raw.FPDFPageObj_Transform(obj, 1, 0, 0, 1, x, height - y - n * size * 1.3)
+        raw.FPDFPage_InsertObject(page.raw, obj)
+    raw.FPDFPage_GenerateContent(page.raw)
+    out = _io.BytesIO()
+    pdf.save(out)
+    return out.getvalue()
+
+
+def blank_pdf(pages: int = 1) -> bytes:
+    import io as _io
+    import pypdfium2 as pdfium
+    pdf = pdfium.PdfDocument.new()
+    for _ in range(pages):
+        pdf.new_page(595, 842)
+    out = _io.BytesIO()
+    pdf.save(out)
+    return out.getvalue()
+
+
+def text_image(text: str, width: int, height: int, size: int = 20, fmt: str = "PNG") -> bytes:
+    import io as _io
+    from PIL import Image, ImageDraw, ImageFont
+    image = Image.new("RGB", (width, height), "white")
+    if text:
+        ImageDraw.Draw(image).text((size, size * 2), text, fill="black", font=ImageFont.load_default(size))
+    out = _io.BytesIO()
+    image.save(out, fmt)
+    return out.getvalue()
+
 FIX = ROOT / "tests" / "fixtures"
 
 
@@ -38,11 +82,8 @@ class FakeFetcher:
         raise AssertionError("unerwartete URL " + url)
 
     def download(self, url, target):
-        doc = pymupdf.open()
-        page = doc.new_page()
-        page.insert_text((72, 72), "Kerrygold Butter 250 g\n1.69\n1 kg = 6.76\nMilch 1 l\n-.99", fontsize=14)
         target.parent.mkdir(parents=True, exist_ok=True)
-        doc.save(target)
+        target.write_bytes(text_pdf("Kerrygold Butter 250 g\n1.69\n1 kg = 6.76\nMilch 1 l\n-.99"))
         return target
 
     def render(self, url, **k):
@@ -173,15 +214,8 @@ def test_ocr_page(tmp_path):
     if not ocr_available():
         pytest.skip("kein OCR")
     # Bild-only Seite erzeugen
-    src = pymupdf.open()
-    p = src.new_page()
-    p.insert_text((50, 100), "Kerrygold Butter 250 g  1.69", fontsize=28)
-    pix = p.get_pixmap(matrix=pymupdf.Matrix(2, 2))
-    img_doc = pymupdf.open()
-    ip = img_doc.new_page(width=p.rect.width, height=p.rect.height)
-    ip.insert_image(ip.rect, stream=pix.tobytes("png"))
     path = tmp_path / "img.pdf"
-    img_doc.save(path)
+    pdfwerk.images_to_pdf([text_image("Kerrygold Butter 250 g  1.69", 1190, 1684, 56)], path)
     pages = index_pdf(path, use_ocr=True)
     assert pages[0][2] is True
     assert "kerrygold" in pages[0][1].lower()
@@ -355,9 +389,7 @@ def test_flipbuilder_and_notify(env, monkeypatch):
     from angebotsbot.core.prospekte.fetchers import parse_flipbuilder_texts
     js = 'var textForPages = ["Seite eins Café", "Butter 250 g 1,79 \\& mehr"];'
     assert parse_flipbuilder_texts(js) == ["Seite eins Café", "Butter 250 g 1,79 & mehr"]
-    pm = pymupdf.open()
-    pg = pm.new_page(width=100, height=140)
-    jpg = pg.get_pixmap().tobytes("jpg")
+    jpg = text_image("", 100, 140, fmt="JPEG")
 
     class FFetcher(FakeFetcher):
         def get(self, url, as_json=False, binary=False):
@@ -378,7 +410,7 @@ def test_flipbuilder_and_notify(env, monkeypatch):
     assert not res.errors, res.errors
     p = db.prospekte()[0]
     assert p["retailer"] == "Delhaize (LU)" and p["pages"] == 2 and p["indexed"] == 1
-    assert pymupdf.open(p["pdf_path"]).page_count == 2
+    assert pdfwerk.page_count(p["pdf_path"]) == 2
 
     sent = {}
 
@@ -437,11 +469,8 @@ def test_issuu_and_screens_and_metro(env, monkeypatch, aktuelle_prospektwoche):
     from angebotsbot.core import engine as engmod
     from angebotsbot.core.models import Source, WatchItem
     from angebotsbot.core.net import FetchError
-    src_doc = pymupdf.open()
-    pg = src_doc.new_page(width=300, height=400)
-    pg.insert_text((20, 60), "Butter 250 g 1.99", fontsize=20)
-    jpg = pg.get_pixmap().tobytes("jpg")
-    png = pg.get_pixmap().tobytes("png")
+    jpg = text_image("Butter 250 g 1.99", 300, 400, fmt="JPEG")
+    png = text_image("Butter 250 g 1.99", 300, 400)
 
     class IFetcher(FakeFetcher):
         def get(self, url, as_json=False, binary=False):
@@ -907,10 +936,7 @@ def test_rewe_wasserweg_wochenabruf(env, monkeypatch):
     pdf_calls = []
     def pdf_download(ctx, url):
         pdf_calls.append(url)
-        with pymupdf.open() as doc:
-            doc.new_page()
-            doc.new_page()
-            return doc.tobytes()
+        return blank_pdf(2)
     monkeypatch.setattr(rewe, "fetch_brochure_pdf", pdf_download)
     fetch = Marktseite()
     ctx = RunContext(fetch, db, cfg.settings, [])
@@ -918,8 +944,7 @@ def test_rewe_wasserweg_wochenabruf(env, monkeypatch):
         offer, = run(ctx, rewe_quelle())
         assert offer.price == 0.99 and "0,10 €" in offer.info
     assert len(pdf_calls) == 1 and len(ctx.extra["new_prospekte"]) == 1
-    with pymupdf.open(db.prospekt(ctx.extra["new_prospekte"][0])["pdf_path"]) as doc:
-        assert doc.page_count == 2
+    assert pdfwerk.page_count(db.prospekt(ctx.extra["new_prospekte"][0])["pdf_path"]) == 2
     assert fetch.calls == 1 and "wwident=840740" in db.meta_get("rewe-markt:840740")
 
 
@@ -931,9 +956,7 @@ def test_rewe_browser_uebernimmt_pdf(env, monkeypatch):
     from angebotsbot.core.sources.rewe import open_brochure
     from angebotsbot.core.config import REWE_MARKT
     cfg, db, _ = env
-    with pymupdf.open() as doc:
-        doc.new_page()
-        pdf = base64.b64encode(doc.tobytes()).decode()
+    pdf = base64.b64encode(blank_pdf()).decode()
     original = Browser.new_context
 
     def with_fixture(browser, **kw):
@@ -951,8 +974,7 @@ def test_rewe_browser_uebernimmt_pdf(env, monkeypatch):
     deadline = time.monotonic() + 35
     pid = open_brochure(cfg.settings, REWE_MARKT, "", db, lambda *_: None, lambda: time.monotonic() > deadline)
     assert pid and db.prospekt(pid)["title"] == "Wochenprospekt"
-    with pymupdf.open(db.prospekt(pid)["pdf_path"]) as saved:
-        assert saved.page_count == 1
+    assert pdfwerk.page_count(db.prospekt(pid)["pdf_path"]) == 1
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Edge-Test unter Windows")
@@ -965,9 +987,7 @@ def test_wochenprospekt_browser_klickt_download_selbst(env):
     url = "https://viewer.example/woche"
     html = b"""<button hidden onclick="location.href='/prospekt'">PDF herunterladen</button>
                <script>setTimeout(() => document.querySelector('button').hidden=false, 100)</script>"""
-    with pymupdf.open() as document:
-        document.new_page()
-        pdf = document.tobytes()
+    pdf = blank_pdf()
     calls = []
     def get(target):
         if target.endswith("/favicon.ico"):
@@ -983,3 +1003,20 @@ def test_wochenprospekt_browser_klickt_download_selbst(env):
         finally:
             browser.close()
     assert calls == ["https://viewer.example/prospekt"] and actual == pdf
+
+
+def test_lizenzhinweise_ohne_agpl():
+    from angebotsbot import lizenzen
+    namen = {d.metadata["Name"].lower() for d in lizenzen.pakete()}
+    assert "pypdfium2" in namen and "pyside6" in namen
+    assert not namen & {"pymupdf", "pymupdfb"}, "PyMuPDF (AGPL) darf nicht mehr mitgeliefert werden"
+    text = lizenzen.erzeugen()
+    assert "MIT" in text and "Volltext LGPL-3.0-only" in text and "GNU LESSER GENERAL PUBLIC LICENSE" in text
+
+
+def test_versionen_gleich():
+    import re
+    from angebotsbot import __version__
+    app = Path(__file__).resolve().parent.parent / "app"
+    assert re.search(r"^version: (\S+)\+", (app / "pubspec.yaml").read_text(encoding="utf-8"), re.M)[1] == __version__
+    assert f"appVersion = '{__version__}'" in (app / "lib" / "version.dart").read_text(encoding="utf-8")

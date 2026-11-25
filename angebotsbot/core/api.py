@@ -294,14 +294,12 @@ class ApiServer:
                            "fetched": r["fetched"] or ""} for r in self.db.prospekte()]}
 
     def prospekt_page(self, pid, page, q, body):
-        from .prospekte.pdftext import page_png
+        from .prospekte.pdfwerk import page_image
         r = self.db.prospekt(int(pid))
         if not r:
             raise KeyError(pid)
-        import pymupdf
-        png = page_png(r["pdf_path"], int(page), float(q.get("zoom") or 1.5))
-        with pymupdf.open(stream=png, filetype="png") as d:  # als JPEG: deutlich kleiner fürs Handy
-            jpg = d[0].get_pixmap().tobytes("jpg", jpg_quality=80)
+        # als JPEG: deutlich kleiner fürs Handy
+        jpg = page_image(r["pdf_path"], int(page), float(q.get("zoom") or 1.5), "JPEG", quality=80)
         return ("bytes", "image/jpeg", jpg)
 
     def pruefen(self, q, body):

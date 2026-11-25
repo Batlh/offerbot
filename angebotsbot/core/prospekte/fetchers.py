@@ -164,7 +164,7 @@ def parse_flipbuilder_texts(js: str) -> list[str]:
 
 
 def run_flipbuilder(ctx: RunContext, source: Source) -> list[Offer]:
-    import pymupdf
+    from .pdfwerk import images_to_pdf
     st = source.settings
     retailer = st.get("retailer") or source.name
     start = ctx.fill(st.get("start_url", "").strip())
@@ -190,16 +190,9 @@ def run_flipbuilder(ctx: RunContext, source: Source) -> list[Offer]:
             continue
         if known or not texts:
             continue
-        doc = pymupdf.open()
-        for i in range(1, len(texts) + 1):
-            img = ctx.fetcher.get(f"{base}files/mobile/{i}.jpg", binary=True)
-            with pymupdf.open(stream=img, filetype="jpg") as im:
-                r = im[0].rect
-            pg = doc.new_page(width=r.width, height=r.height)
-            pg.insert_image(pg.rect, stream=img)
+        images = [ctx.fetcher.get(f"{base}files/mobile/{i}.jpg", binary=True) for i in range(1, len(texts) + 1)]
         target = prospekt_dir() / safe_name(retailer) / (safe_name(f"{date.today():%Y-%m-%d}_{retailer}_{title}") + ".pdf")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        doc.save(target)
+        images_to_pdf(images, target)
         pid = ctx.db.add_prospekt(retailer, title, base, str(target))
         if pid:
             ctx.db.set_pages(pid, [(i + 1, t, False) for i, t in enumerate(texts)])
@@ -210,15 +203,8 @@ def run_flipbuilder(ctx: RunContext, source: Source) -> list[Offer]:
 
 # ---------------------------------------------------------------- Bilder → PDF (für Texterkennung)
 def _images_to_pdf(images: list[bytes], target):
-    import pymupdf
-    doc = pymupdf.open()
-    for img in images:
-        with pymupdf.open(stream=img) as im:
-            r = im[0].rect
-        pg = doc.new_page(width=r.width, height=r.height)
-        pg.insert_image(pg.rect, stream=img)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    doc.save(target, deflate=True)
+    from .pdfwerk import images_to_pdf
+    images_to_pdf(images, target)
     return target
 
 

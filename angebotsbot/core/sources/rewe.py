@@ -200,14 +200,14 @@ def save_week_pdf(ctx, content, market, url, monday):
     from hashlib import sha256
     from tempfile import NamedTemporaryFile
     from pathlib import Path
-    import pymupdf
     from ..paths import prospekt_dir
+    from ..prospekte.pdfwerk import page_count
     if not content.startswith(b"%PDF-"):
         raise ValueError("Der Download ist keine PDF-Datei.")
-    with pymupdf.open(stream=content, filetype="pdf") as doc:
-        if not doc.is_pdf or doc.needs_pass or not doc.page_count:
-            raise ValueError("Der Prospekt enthält keine lesbaren Seiten.")
-        pages = doc.page_count
+    try:
+        pages = page_count(content)
+    except ValueError as e:
+        raise ValueError("Der Prospekt enthält keine lesbaren Seiten.") from e
     digest = sha256(content).hexdigest()
     key = f"{url}#pdf-{digest}"
     if ctx.db.prospekt_known(key):
@@ -235,7 +235,6 @@ def open_brochure(settings, market_url, viewer, db, log, cancelled):
     from hashlib import sha256
     from tempfile import TemporaryDirectory
 
-    import pymupdf
     from playwright.sync_api import Error, sync_playwright
 
     from ..paths import prospekt_dir
@@ -270,9 +269,11 @@ def open_brochure(settings, market_url, viewer, db, log, cancelled):
                 return None
             file = Path(tmp) / "prospekt.pdf"
             downloads[0].save_as(file)
-            with pymupdf.open(file) as document:
-                if not document.is_pdf or not document.page_count:
-                    raise ValueError("Der gewählte Download ist kein lesbarer PDF-Prospekt.")
+            from ..prospekte.pdfwerk import page_count
+            try:
+                page_count(file.read_bytes())
+            except ValueError as e:
+                raise ValueError("Der gewählte Download ist kein lesbarer PDF-Prospekt.") from e
             digest = sha256(file.read_bytes()).hexdigest()
             key = f"{market_url}#pdf-{digest}"
             if db.prospekt_known(key):

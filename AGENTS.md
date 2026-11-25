@@ -1,6 +1,6 @@
 # Briefing für KI-Assistenten (GPT/Codex, Claude)
 
-Stand: 23.11.2026, Version 1.10.7. Kurz und verbindlich – bitte vor jeder Arbeit lesen.
+Stand: 25.11.2026, Version 1.10.9. Kurz und verbindlich – bitte vor jeder Arbeit lesen.
 
 ## Arbeitsweise (Vorgaben des Nutzers)
 
@@ -17,7 +17,8 @@ Jeder Push auf `main` (außer reine Doku: `docs/**`, `**.md`) baut über GitHub 
 (`.github/workflows/windows-build.yml`) die Windows-EXE **und** die Android-APK und legt eine **neue Release** an.
 Deshalb bei Code-Änderungen immer:
 
-1. Version erhöhen in `angebotsbot/__init__.py` **und** `app/pubspec.yaml` (gleiche Nummer).
+1. Version erhöhen in `angebotsbot/__init__.py`, `app/pubspec.yaml` **und** `app/lib/version.dart` (gleiche Nummer,
+   ein Test prüft das).
 2. Abschnitt in `CHANGELOG.md` (Neu / Geändert / Behoben) – daraus entsteht der Release-Text.
 3. Tests grün: `python -m pytest tests` (Python) – Flutter-Analyse und -Tests laufen in der CI.
 4. Nach dem Push prüfen, ob der Build grün ist und die Release beide Dateien hat
@@ -40,7 +41,7 @@ angebotsbot/core/     Logik ohne Oberfläche (wiederverwendbar)
   engine.py           Lauf: Quellen abrufen → abgleichen (matcher.py) → Prospekte (prospekte/) → Ergebnis
   sources/            Quellentypen mit Registry (base.py: FieldSpec → Formular in der GUI); kaufda.py, rss.py …
   prospekte/          Prospekt-Abrufer (Schwarz/Lidl+Kaufland, Publitas, iPaper, FlipBuilder, Issuu, Screens),
-                      pdftext.py (Text/OCR), analyze.py (Treffer, KI)
+                      pdfwerk.py (PDF über pypdfium2/Pillow), pdftext.py (Text/OCR), analyze.py (Treffer, KI)
   db.py               SQLite: offers, matches, price_history, prospekte, shopping (mit Handy-Abgleich)
   net.py              Abruf mit Pausen je Seite, Browser-Modus (Playwright), Fehler/Prüfung erkennen
   browser_setup.py    Browser einrichten (Edge bevorzugt, sonst Chromium-Download), launch() repariert sich selbst
@@ -71,6 +72,8 @@ Daten liegen im Ordner `data/` neben der EXE (nie committen).
   beim Abgleich gewinnt die neuere Änderung, Löschen = Grabstein (`deleted`). PC und App gleich halten
   (`db.shopping_sync` ↔ `ZettelRepo.merge`), auch die Mengen-Erkennung (`units.split_quantity` ↔ `splitQuantity`).
 - Android-Paketname: `io.github.batlh.offerbot`.
+- **Lizenzen:** Keine AGPL-/GPL-Bibliotheken in die EXE oder App aufnehmen (deshalb kein PyMuPDF). Neue Pakete
+  erscheinen automatisch in „Über / Lizenzen“ (`angebotsbot/lizenzen.py`); Lizenz vorher prüfen.
 - Region-Platzhalter in Quellen: `{ort}`, `{plz}`, `{kaufda}` (Standard Trier/54290, Frankreich Thionville).
 
 ## Offene Punkte
