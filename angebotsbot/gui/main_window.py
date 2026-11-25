@@ -100,6 +100,7 @@ class MainWindow(QMainWindow):
             self._update_timer.start(6 * 60 * 60 * 1000)
             QTimer.singleShot(5000, self, self.check_update)
         help_menu.addAction("Erste Schritte", lambda: self.show_help("Erste Schritte"))
+        help_menu.addAction("Über / Lizenzen", self.show_licenses)
         if self.config.first_start:
             QTimer.singleShot(0, self, lambda: self.show_help("Erste Schritte"))
 
@@ -207,6 +208,26 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(dialog)
         view = QTextBrowser(dialog)
         view.setMarkdown(text)
+        layout.addWidget(view)
+        buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        dialog.exec()
+
+    def show_licenses(self):
+        from ..lizenzen import REPO, text
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Über {APP_NAME} / Lizenzen")
+        dialog.resize(760, 560)
+        layout = QVBoxLayout(dialog)
+        info = QLabel(f"<b>{APP_NAME} {__version__}</b><br>Eigener Code unter MIT-Lizenz · "
+                      f'Quellcode: <a href="{REPO}">{REPO}</a><br>'
+                      "Mitgelieferte Bibliotheken stehen unter ihren eigenen Lizenzen (unten).", dialog)
+        info.setOpenExternalLinks(True)
+        layout.addWidget(info)
+        view = QPlainTextEdit(dialog)
+        view.setReadOnly(True)
+        view.setPlainText(text())
         layout.addWidget(view)
         buttons = QDialogButtonBox(QDialogButtonBox.Close)
         buttons.rejected.connect(dialog.reject)

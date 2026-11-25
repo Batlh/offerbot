@@ -6,7 +6,7 @@ Stand: 22.11.2026, Version 1.10.5 · Status: **A umgesetzt**, Einkaufsliste auch
 
 - `angebotsbot/core` enthält die komplette Logik ohne Oberfläche (Quellen, Abgleich, Prospekte, Grundpreise,
   Berichte, Einkaufszettel). Die Windows-Oberfläche (`angebotsbot/gui`, PySide6) ist davon getrennt.
-- Schwer auf Android: Texterkennung (rapidocr/onnxruntime), PDF (PyMuPDF), Browser-Modus (Playwright).
+- Schwer auf Android: Texterkennung (rapidocr/onnxruntime), PDF (PDFium über pypdfium2), Browser-Modus (Playwright).
   Leicht: alles mit HTTP + HTML/JSON (mydealz, kaufDA, Bonial, Lidl, Amazon prüfen, Abgleich, Grundpreise).
 
 ## Optionen
@@ -41,7 +41,7 @@ optional eigene Quellen direkt auf dem Handy (mydealz, kaufDA, Bonial, Lidl – 
   - `POST /api/treffer/<uid>/gelesen`
   - `GET  /api/einkaufszettel`, `POST /api/einkaufszettel` (hinzufügen), `POST /api/einkaufszettel/<id>/erledigt`
   - `GET  /api/watchlist`, `POST /api/watchlist` (anlegen/ändern)
-  - `GET  /api/prospekt/<id>/seite/<n>.jpg` – Prospektseite als Bild (PyMuPDF rendert)
+  - `GET  /api/prospekt/<id>/seite/<n>.jpg` – Prospektseite als Bild (PDFium rendert)
   - `POST /api/pruefen` – Lauf starten
   - `GET  /api/amazon?watch=<id>` – „Amazon prüfen“ vom Handy aus
 - Windows-Firewall-Hinweis beim ersten Einschalten

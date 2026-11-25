@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../data/zettel.dart';
 import '../main.dart';
 import '../models.dart';
+import '../version.dart';
 import 'prospekte_page.dart';
 import 'setup_page.dart';
 import 'treffer_page.dart';
@@ -106,6 +107,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       const MethodChannel('offerbot/updates').invokeMethod<void>('check');
     } else if (v == 'suche') {
       showSearch(context: context, delegate: OfferSearch());
+    } else if (v == 'lizenzen') {
+      // Listet alle mitgelieferten Flutter-/Dart-Pakete samt Lizenztext automatisch auf
+      showLicensePage(
+        context: context,
+        applicationName: 'AngebotsBot',
+        applicationVersion: appVersion,
+        applicationLegalese: 'Eigener Code: MIT-Lizenz\nQuellcode: https://github.com/Batlh/offerbot',
+      );
     } else if (v == 'trennen') {
       scope.disconnect();
     } else if (v == 'verbinden') {
@@ -132,6 +141,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               itemBuilder: (_) => const [
                 PopupMenuItem(value: 'update', child: Text('Nach App-Update suchen')),
                 PopupMenuItem(value: 'verbinden', child: Text('Mit AngebotsBot am PC verbinden')),
+                PopupMenuItem(value: 'lizenzen', child: Text('Über / Lizenzen')),
               ],
             ),
           ],
@@ -156,6 +166,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               PopupMenuItem(value: 'update', child: Text('Nach App-Update suchen')),
               PopupMenuItem(value: 'suche', child: Text('In allen Angeboten suchen')),
               PopupMenuItem(value: 'trennen', child: Text('Vom PC trennen')),
+              PopupMenuItem(value: 'lizenzen', child: Text('Über / Lizenzen')),
             ],
           ),
         ],

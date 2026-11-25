@@ -1,6 +1,6 @@
 # To-do – offene Punkte
 
-Stand: 22.11.2026. Ergebnisse und Zugangsbedingungen: [Quellenprüfung und Trierer Stichprobe](QUELLEN-API.md).
+Stand: 25.11.2026. Ergebnisse und Zugangsbedingungen: [Quellenprüfung und Trierer Stichprobe](QUELLEN-API.md).
 
 ## 1. Hilfe im Programm
 
@@ -33,40 +33,25 @@ Wo es eine API gibt, ist das ein großer Gewinn: stabiler, schneller, kein Bruch
 - [x] API-Quelle im Kern über die bestehende Registry bereitstellen (WooCommerce Store API), damit neue Schnittstellen ohne Oberflächen-Umbau dazukommen
 - [x] API-Vorrang für konfigurierte WooCommerce-Watchlist-Suchen: HTML-Rückfall nur bei fehlendem Endpunkt; bestehende individuelle Quellen können die Shop-Adresse ergänzen
 
-## 4. Lizenzen (vorgemerkt für 25.11.2026)
+## 4. Lizenzen (erledigt in 1.10.9)
 
-Hinweis aus einer Lizenzprüfung: Das Repo steht unter MIT, die Windows-EXE enthält aber **PyMuPDF/MuPDF**. Die gibt es nur
-unter **AGPL** oder mit kommerzieller Lizenz. Weil PyInstaller PyMuPDF in die EXE packt und die EXE über die Releases
-verteilt wird, fällt die EXE als Ganzes unter die AGPL. Das README sagt aber nur „MIT“. Der Quellcode ist ohnehin
-öffentlich, es ist also kein Drama, aber falsch dokumentiert.
-
-- [ ] Entscheiden (Vorschlag: **a**):
-  - **a) PyMuPDF ersetzen**, z. B. durch `pypdfium2` (Apache-2.0/BSD-3), dann bleibt alles MIT.
-    Betroffen sind mehr Dateien als zunächst gedacht: `core/prospekte/pdftext.py` (Text, Seiten als Bild für OCR),
-    `core/prospekte/fetchers.py` (PDF aus Bildern bauen → z. B. mit Pillow), `core/api.py` (Seitenbilder für die
-    Handy-App), `core/sources/rewe.py`, dazu `tests/test_core.py`, `requirements.txt` und `--collect-data pymupdf`
-    im Workflow. Die Seitensuche im PDF-Viewer läuft über Qt (QtPdf), sie ist nicht betroffen.
-    Texterkennung bleibt **RapidOCR** (PaddleOCR-Modelle über ONNX Runtime, Apache-2.0/MIT). Das volle PaddleOCR
-    mit PaddlePaddle wäre viel größer und brächte für Prospekte kaum mehr. pdfplumber ist nicht nötig: pypdfium2
-    liefert Text samt Zeichen-Koordinaten selbst. Optional: Koordinaten nutzen, um Preise genauer dem Produkt
-    daneben zuzuordnen (heute: Preis aus dem Text in der Nähe geraten).
-  - b) AGPL akzeptieren: im README vermerken, dass die EXE unter AGPL steht, AGPL-Text und Link zum Quellcode
-    in die EXE packen.
-- [ ] **Lizenzhinweise in der EXE**: Fenster „Über / Lizenzen“ und eine Datei `THIRD_PARTY_LICENSES.txt` im ZIP.
-  Inhalt: PySide6/Qt (LGPL-3.0, Bibliotheken bleiben austauschbar – Hinweis + Link zum Quellcode), Playwright
-  (Apache-2.0), RapidOCR + PaddleOCR-Modelle (Apache-2.0), ONNX Runtime (MIT), OpenCV (Apache-2.0), requests, BeautifulSoup, lxml, keyring, qrcode usw.
-  Am besten beim Build automatisch erzeugen, z. B. mit `pip-licenses`.
-- [ ] **Lizenzhinweise in der Android-App**: Menüpunkt „Lizenzen“ mit Flutters eingebautem `showLicensePage`
-  (listet die Pakete automatisch), dazu App-Version und Link zum Repo.
-- [ ] README-Abschnitt „Lizenz“ anpassen: eigener Code MIT, mitgelieferte Bibliotheken mit eigenen Lizenzen.
+- [x] Entschieden: **a) PyMuPDF ersetzt** durch pypdfium2 (PDFium, Apache-2.0/BSD-3) + Pillow, gebündelt in
+  `core/prospekte/pdfwerk.py`. Betroffen waren `pdftext.py`, `fetchers.py`, `api.py`, `sources/rewe.py`, Tests,
+  `requirements.txt`, `build_exe.bat` und der Workflow. Texterkennung bleibt RapidOCR.
+- [x] **Lizenzhinweise in der EXE**: „Hilfe → Über / Lizenzen“ und `_internal\THIRD_PARTY_LICENSES.txt`, beim Build
+  von `python -m angebotsbot.lizenzen` aus den installierten Paketen erzeugt (ohne pip-licenses). SPDX-Volltexte
+  für Pakete ohne eigene Lizenzdatei liegen in `angebotsbot/lizenztexte/`. Die Datei liegt bewusst in `_internal`:
+  der Updater bis 1.10.8 nimmt auf oberster Ebene des Update-Pakets nichts anderes an.
+- [x] **Lizenzhinweise in der Android-App**: Menüpunkt „Über / Lizenzen“ (`showLicensePage`) mit Version und
+  Repo-Link. Version steht in `app/lib/version.dart` (Test prüft Gleichstand mit pubspec und `__version__`).
+- [x] README-Abschnitt „Lizenz“ angepasst.
+- [ ] Optional: Zeichen-Koordinaten von PDFium nutzen, um Preise genauer dem Produkt daneben zuzuordnen.
 
 ## 5. Aus der Durchsicht vom 25.11.2026
 
-- [ ] **Schlüsselwechsel 1.10.8 dokumentieren:** Apps bis einschließlich 1.10.7 sind mit dem alten Schlüssel signiert
-  und können sich nicht selbst auf 1.10.8+ aktualisieren (Android und die Signaturprüfung der App lehnen ab).
-  Einmalig deinstallieren, neue APK installieren, neu koppeln. Hinweis in README (Abschnitt Handy-App),
-  `docs/ANDROID.md` und im CHANGELOG zu 1.10.8; optional erkennt die App den Fall und zeigt genau diesen Hinweis
-  statt „Signatur stimmt nicht“.
+- [ ] **Schlüsselwechsel 1.10.8:** Im CHANGELOG zu 1.10.8 steht der Hinweis (einmal deinstallieren, Liste vorher
+  abgleichen). Fehlt noch in README (Abschnitt Handy-App) und `docs/ANDROID.md`; optional erkennt die App den Fall
+  und zeigt genau diesen Hinweis statt „Signatur stimmt nicht“.
 - [ ] **kaufDA-Sonderfall aus dem Code nehmen:** In `core/sources/kaufda.py` ist „Monster Energy → Energydrink“ fest
   verdrahtet. Stattdessen ein Feld „Ersatzbegriff für Prospekt-Portale“ im Watchlist-Eintrag (per Migration in
   `config.py` für den bestehenden Monster-Eintrag vorbelegen).

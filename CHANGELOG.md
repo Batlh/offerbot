@@ -3,6 +3,17 @@
 Alle Versionen des AngebotsBot (offerbot). Die neueste steht oben.
 Jede Release auf GitHub enthält die fertige Windows-Version als ZIP (`AngebotsBot-windows.zip`).
 
+## 1.10.9 – 2026-11-25
+### Geändert
+- **PDF-Verarbeitung ohne PyMuPDF:** Lesen, Prüfen, Seitenbilder und „Bilder → PDF“ laufen jetzt über PDFium
+  (pypdfium2) und Pillow (neues Modul `core/prospekte/pdfwerk.py`). PyMuPDF stand unter AGPL und hätte die ganze
+  Windows-Version unter die AGPL gestellt; jetzt bleibt sie bei MIT plus den Lizenzen der Bibliotheken.
+  Bilder-Prospekte übernehmen JPEG-Seiten unverändert, ohne erneute Komprimierung.
+### Neu
+- **Hilfe → Über / Lizenzen** zeigt Version, Quellcode-Link und alle mitgelieferten Bibliotheken mit Lizenztext.
+  Die Liste entsteht beim Build automatisch (`_internal\THIRD_PARTY_LICENSES.txt`).
+- Android: Menüpunkt **Über / Lizenzen** mit Version und den Lizenzen aller App-Pakete.
+
 ## 1.10.8 – 2026-11-24
 ### Geändert
 - **Android: neuer, eigener Signierschlüssel** für `io.github.batlh.offerbot` (vorher lag ein Schlüssel offen im

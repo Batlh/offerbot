@@ -209,4 +209,11 @@ Briefing für KI-Assistenten (Regeln, Aufbau, Release-Ablauf): [AGENTS.md](AGENT
 
 ## Lizenz
 
-MIT – siehe [LICENSE](LICENSE).
+Der eigene Code steht unter **MIT** – siehe [LICENSE](LICENSE).
+
+Die fertige Windows-Version und die Android-App enthalten Bibliotheken anderer Projekte mit eigenen Lizenzen,
+u. a. Qt/PySide6 (LGPL-3.0, die Qt-Dateien in `_internal` lassen sich austauschen), PDFium über pypdfium2
+(Apache-2.0/BSD-3-Clause), RapidOCR mit PaddleOCR-Modellen (Apache-2.0), ONNX Runtime (MIT), OpenCV (Apache-2.0)
+und Playwright (Apache-2.0, mit Node.js unter MIT). Die vollständige Liste mit allen Lizenztexten steht im Programm
+unter **Hilfe → Über / Lizenzen** und in `_internal\THIRD_PARTY_LICENSES.txt`; die App zeigt ihre Pakete im Menü
+unter **Über / Lizenzen**. Bis Version 1.10.8 lag der Windows-Version PyMuPDF (AGPL-3.0) bei; seit 1.10.9 nicht mehr.
